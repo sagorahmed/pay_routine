@@ -1,0 +1,30 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Build output
+.next/
+dist/
+out/
+coverage/
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# Logs
+*.log
+executor/logs/
+
+# Env
+.env
+.env.local
+.env.*.local
+.vercel/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/*.code-workspace
