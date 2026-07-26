@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,6 +24,11 @@ const START_TIME_GRACE_SECONDS = 15;
 const erc20ApprovalAbi = parseAbi([
   "function approve(address spender,uint256 value) returns (bool)",
 ]);
+
+function formatDateTimeLocal(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 function formatCreateScheduleError(error: unknown): string {
   const message = error instanceof BaseError ? error.shortMessage : error instanceof Error ? error.message : String(error);
@@ -68,6 +73,7 @@ type FormValues = z.infer<typeof schema>;
 export function CreateScheduleForm() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
+  const startDateInputRef = useRef<HTMLInputElement>(null);
   const [reviewMode, setReviewMode] = useState(false);
   const [successInfo, setSuccessInfo] = useState<{ approveHash: `0x${string}`; createHash: `0x${string}` } | null>(null);
   const usdcTokenAddress =
@@ -114,6 +120,12 @@ export function CreateScheduleForm() {
     const payout = Number(values.amountPerPayment || 0);
     return payout * (executorFeePercent / 100);
   }, [values.amountPerPayment, executorFeePercent]);
+
+  const minimumStartDate = useMemo(() => {
+    const minMs = Date.now() + START_TIME_GRACE_SECONDS * 1000;
+    const roundedToNextMinute = Math.ceil(minMs / 60000) * 60000;
+    return formatDateTimeLocal(new Date(roundedToNextMinute));
+  }, []);
 
   useEffect(() => {
     if (tokenMode === "usdc") {
@@ -174,15 +186,20 @@ export function CreateScheduleForm() {
       return;
     }
 
-    const nowSec = Math.floor(Date.now() / 1000);
-    const rawStartTimestamp = Math.floor(new Date(data.startDate).getTime() / 1000);
-
-    if (!Number.isFinite(rawStartTimestamp)) {
+    const startTimestampMs = new Date(data.startDate).getTime();
+    if (!Number.isFinite(startTimestampMs)) {
       form.setError("startDate", { message: "Start date is invalid." });
       return;
     }
 
-    const startTimestamp = rawStartTimestamp <= nowSec + START_TIME_GRACE_SECONDS ? 0 : rawStartTimestamp;
+    if (startTimestampMs <= Date.now() + START_TIME_GRACE_SECONDS * 1000) {
+      form.setError("startDate", {
+        message: `Start date must be at least ${START_TIME_GRACE_SECONDS} seconds in the future.`,
+      });
+      return;
+    }
+
+    const startTimestamp = Math.floor(startTimestampMs / 1000);
 
     try {
       // Step 1: approve contract to pull escrow amount from user's wallet.
@@ -352,7 +369,35 @@ export function CreateScheduleForm() {
 
           <div>
             <label className="mb-1 block text-sm text-slate-300">Start Date</label>
-            <Input type="datetime-local" {...form.register("startDate")} />
+            <div className="relative">
+              <Input
+                ref={startDateInputRef}
+                type="datetime-local"
+                min={minimumStartDate}
+                className="pr-28 [color-scheme:dark]"
+                {...form.register("startDate")}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="absolute right-1 top-1 h-8 px-3 text-xs"
+                onClick={() => {
+                  const input = startDateInputRef.current;
+                  if (!input) return;
+                  if (typeof input.showPicker === "function") {
+                    input.showPicker();
+                    return;
+                  }
+                  input.focus();
+                }}
+              >
+                Click On Icon
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Select when the first payment should start.</p>
+            {form.formState.errors.startDate?.message ? (
+              <p className="mt-2 text-xs text-rose-400">{form.formState.errors.startDate.message}</p>
+            ) : null}
           </div>
 
           <div>
