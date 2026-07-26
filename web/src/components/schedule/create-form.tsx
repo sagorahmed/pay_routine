@@ -102,6 +102,7 @@ export function CreateScheduleForm() {
   const { writeContractAsync, isPending } = useRecurringContract();
 
   const values = useWatch({ control: form.control });
+  const startDateField = form.register("startDate");
   const tokenMode = values.tokenMode ?? (hasUsdcAddress ? "usdc" : "custom");
 
   const intervalSeconds = useMemo(() => {
@@ -371,11 +372,16 @@ export function CreateScheduleForm() {
             <label className="mb-1 block text-sm text-slate-300">Start Date</label>
             <div className="relative">
               <Input
-                ref={startDateInputRef}
+                ref={(element) => {
+                  startDateInputRef.current = element;
+                  startDateField.ref(element);
+                }}
                 type="datetime-local"
                 min={minimumStartDate}
                 className="pr-28 [color-scheme:dark]"
-                {...form.register("startDate")}
+                name={startDateField.name}
+                onBlur={startDateField.onBlur}
+                onChange={startDateField.onChange}
               />
               <Button
                 type="button"
@@ -391,7 +397,7 @@ export function CreateScheduleForm() {
                   input.focus();
                 }}
               >
-                Click On Icon
+                Pick Date
               </Button>
             </div>
             <p className="mt-1 text-xs text-slate-500">Select when the first payment should start.</p>

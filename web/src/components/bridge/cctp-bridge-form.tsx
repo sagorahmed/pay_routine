@@ -105,6 +105,7 @@ export function CctpBridgeForm() {
   });
 
   const values = useWatch({ control: form.control });
+  const startDateField = form.register("startDate");
 
   const selectedDestinationChain = useMemo(
     () =>
@@ -380,11 +381,16 @@ export function CctpBridgeForm() {
             <label className="mb-1 block text-sm text-slate-300">Start Date</label>
             <div className="relative">
               <Input
-                ref={startDateInputRef}
+                ref={(element) => {
+                  startDateInputRef.current = element;
+                  startDateField.ref(element);
+                }}
                 type="datetime-local"
                 min={minimumStartDate}
                 className="pr-28 [color-scheme:dark]"
-                {...form.register("startDate")}
+                name={startDateField.name}
+                onBlur={startDateField.onBlur}
+                onChange={startDateField.onChange}
               />
               <Button
                 type="button"
@@ -400,7 +406,7 @@ export function CctpBridgeForm() {
                   input.focus();
                 }}
               >
-                Click On Icon
+                Pick Date
               </Button>
             </div>
             <p className="mt-1 text-xs text-slate-500">Select when the first payment should start.</p>
