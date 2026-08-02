@@ -7,7 +7,14 @@
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "bot:start": "pm2 start ecosystem.config.cjs --update-env",
+    "bot:bootstrap": "bash ./scripts/bootstrap-pm2.sh",
+    "bot:restart": "pm2 restart payroutine-executor --update-env",
+    "bot:stop": "pm2 stop payroutine-executor",
+    "bot:delete": "pm2 delete payroutine-executor",
+    "bot:status": "pm2 status payroutine-executor",
+    "bot:logs": "pm2 logs payroutine-executor --lines 100"
   },
   "keywords": [],
   "author": "",
@@ -16,7 +23,6 @@
   "dependencies": {
     "axios": "^1.18.1",
     "dotenv": "^17.4.2",
-    "node-cron": "^4.6.0",
     "pg": "^8.22.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",

@@ -1,6 +1,6 @@
 # PayRoutine
 
-PayRoutine is a production-ready recurring USDC payment dApp for Arc Network.
+An automatic recurring payment dApp on the top of the Arc Network, leveraging CCTP to facilitate robust cross-chain scheduled payments.
 
 ## What is included
 
