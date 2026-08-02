@@ -15,7 +15,6 @@ fi
 
 mkdir -p logs
 npm ci
-npm run build
 
 pm2 start ecosystem.config.cjs --update-env
 pm2 save

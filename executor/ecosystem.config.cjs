@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "payroutine-executor",
       script: "npm",
-      args: "run start",
+      args: "run start:runtime",
       cwd: __dirname,
       instances: 1,
       exec_mode: "fork",
