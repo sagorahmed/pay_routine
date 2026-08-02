@@ -203,6 +203,15 @@ export async function runExecutionCycle() {
               throw new Error("Cross-chain schedule token must be Arc USDC");
             }
 
+            logger.info(
+              {
+                scheduleId: row.schedule_id,
+                destinationChainId: crossChain.destination_chain_id,
+                destinationDomain: crossChain.destination_domain,
+              },
+              "Starting recurring CCTP bridge",
+            );
+
             const bridgeResult = await bridgeDuePaymentFromArc({
               amount: onChain.amountPerPayment,
               destinationChainId: crossChain.destination_chain_id,
@@ -222,8 +231,25 @@ export async function runExecutionCycle() {
               amount: String(onChain.amountPerPayment),
               status: "success",
             });
+
+            logger.info(
+              {
+                scheduleId: row.schedule_id,
+                burnTxHash: bridgeResult.burnTxHash,
+                mintTxHash: bridgeResult.mintTxHash,
+              },
+              "Recurring CCTP bridge succeeded",
+            );
           } catch (bridgeError) {
-            logger.error({ bridgeError, scheduleId: row.schedule_id }, "Recurring CCTP bridge failed");
+            logger.error(
+              {
+                bridgeError,
+                scheduleId: row.schedule_id,
+                destinationChainId: crossChain.destination_chain_id,
+                destinationDomain: crossChain.destination_domain,
+              },
+              "Recurring CCTP bridge failed",
+            );
 
             await upsertCctpBridgeHistory({
               scheduleId: row.schedule_id,

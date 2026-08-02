@@ -84,6 +84,17 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 type AttestedMessage = {
   message: string;
   attestation: string;
@@ -94,7 +105,14 @@ async function pollAttestation(sourceDomain: number, burnTxHash: string): Promis
   const url = `${config.CCTP_ATTESTATION_API_BASE}/v2/messages/${sourceDomain}?transactionHash=${burnTxHash}`;
 
   for (let attempt = 0; attempt < config.CCTP_ATTESTATION_MAX_ATTEMPTS; attempt += 1) {
-    const response = await fetch(url);
+    let response: Response;
+
+    try {
+      response = await fetchWithTimeout(url, config.CCTP_HTTP_TIMEOUT_MS);
+    } catch {
+      await sleep(config.CCTP_ATTESTATION_POLL_MS);
+      continue;
+    }
 
     if (response.status === 429) {
       await sleep(config.CCTP_ATTESTATION_POLL_MS * 2);
@@ -112,7 +130,9 @@ async function pollAttestation(sourceDomain: number, burnTxHash: string): Promis
     await sleep(config.CCTP_ATTESTATION_POLL_MS);
   }
 
-  throw new Error("Timed out waiting for CCTP attestation");
+  throw new Error(
+    `Timed out waiting for CCTP attestation for burn tx ${burnTxHash} after ${config.CCTP_ATTESTATION_MAX_ATTEMPTS} attempts`,
+  );
 }
 
 export async function bridgeDuePaymentFromArc(input: {

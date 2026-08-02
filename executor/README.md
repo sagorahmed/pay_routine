@@ -38,6 +38,7 @@ pm2 -v
 ```bash
 git clone https://github.com/sagorahmed/pay_routine.git 
 cd pay_routine/executor
+npm install
 ```
 
 ## 3) Create and fill environment file
@@ -57,6 +58,7 @@ Set real values in `.env`:
 - `RETRY_LIMIT`: retry attempts, usually `5`
 - `NOTIFICATION_ENDPOINT`: optional webhook/API URL
 - `LOG_LEVEL`: usually `info`
+- `CCTP_HTTP_TIMEOUT_MS`: HTTP timeout for attestation API calls, usually `15000`
 
 ## 4) Start bot in 24/7 mode (recommended)
 
@@ -97,7 +99,7 @@ If status is `online`, it is running independently of your terminal session.
 ```bash
 sudo reboot
 # reconnect after reboot
-cd PayRoutine/executor
+cd pay_routine/executor
 npm run bot:status
 ```
 
@@ -151,6 +153,9 @@ pm2 logs payroutine-executor
 	- Confirm Node LTS is installed (`node -v`)
 - Bot is not executing payments:
 	- Check logs with `npm run bot:logs`
+	- If you repeatedly see `Previous cycle still running, skipping this tick`, one bridge cycle is taking too long (attestation wait or RPC issues)
+	- Confirm attestation API base and timeout in `.env` (`CCTP_ATTESTATION_API_BASE`, `CCTP_HTTP_TIMEOUT_MS`)
+	- Confirm destination chain RPC URL env vars are set for your selected destination chain
 	- Confirm wallet has gas balance
 	- Confirm schedule is active and due
 - Duplicate executions:
