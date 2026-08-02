@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useAccount, useSwitchChain, useWriteContract } from "wagmi";
 import { createPublicClient, http, pad } from "viem";
 import { arcChain } from "@/lib/chain";
+import { estimateBufferedContractGas } from "@/lib/gas";
 import {
   ARC_CCTP_DOMAIN,
   ARC_TOKEN_MESSENGER_ADDRESS,
@@ -76,12 +77,22 @@ export function useCctpBridge() {
         await switchChainAsync({ chainId: arcChain.id });
 
         setStep("approving");
+        const approveGas = await estimateBufferedContractGas({
+          client: arcPublicClient,
+          account: address,
+          abi: cctpErc20Abi,
+          address: ARC_USDC_ADDRESS,
+          functionName: "approve",
+          args: [ARC_TOKEN_MESSENGER_ADDRESS, amount],
+        });
+
         const approveHash = await writeContractAsync({
           chainId: arcChain.id,
           abi: cctpErc20Abi,
           address: ARC_USDC_ADDRESS,
           functionName: "approve",
           args: [ARC_TOKEN_MESSENGER_ADDRESS, amount],
+          gas: approveGas,
         });
         const approveReceipt = await arcPublicClient.waitForTransactionReceipt({ hash: approveHash });
         if (approveReceipt.status !== "success") {
@@ -90,6 +101,23 @@ export function useCctpBridge() {
 
         setStep("burning");
         const mintRecipientBytes32 = pad(recipient, { size: 32 });
+
+        const burnGas = await estimateBufferedContractGas({
+          client: arcPublicClient,
+          account: address,
+          abi: cctpTokenMessengerAbi,
+          address: ARC_TOKEN_MESSENGER_ADDRESS,
+          functionName: "depositForBurn",
+          args: [
+            amount,
+            destinationChain.domain,
+            mintRecipientBytes32,
+            ARC_USDC_ADDRESS,
+            EMPTY_DESTINATION_CALLER,
+            BigInt(0),
+            2000,
+          ],
+        });
 
         const burnHash = await writeContractAsync({
           chainId: arcChain.id,
@@ -105,6 +133,7 @@ export function useCctpBridge() {
             BigInt(0), // maxFee: Standard Transfer has no protocol fee.
             2000, // minFinalityThreshold >= 2000 selects Standard Transfer.
           ],
+          gas: burnGas,
         });
         const burnReceipt = await arcPublicClient.waitForTransactionReceipt({ hash: burnHash });
         if (burnReceipt.status !== "success") {
@@ -119,12 +148,22 @@ export function useCctpBridge() {
         await switchChainAsync({ chainId: destinationChain.chain.id });
 
         setStep("minting");
+        const mintGas = await estimateBufferedContractGas({
+          client: destinationPublicClient,
+          account: address,
+          abi: cctpMessageTransmitterAbi,
+          address: destinationChain.messageTransmitterAddress,
+          functionName: "receiveMessage",
+          args: [attestation.message as `0x${string}`, attestation.attestation as `0x${string}`],
+        });
+
         const mintHash = await writeContractAsync({
           chainId: destinationChain.chain.id,
           abi: cctpMessageTransmitterAbi,
           address: destinationChain.messageTransmitterAddress,
           functionName: "receiveMessage",
           args: [attestation.message as `0x${string}`, attestation.attestation as `0x${string}`],
+          gas: mintGas,
         });
         const mintReceipt = await destinationPublicClient.waitForTransactionReceipt({ hash: mintHash });
         if (mintReceipt.status !== "success") {

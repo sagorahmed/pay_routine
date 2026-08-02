@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { frequencyOptions } from "@/lib/frequencies";
+import { estimateBufferedContractGas } from "@/lib/gas";
 import { recurringPaymentAbi, recurringPaymentAddress } from "@/lib/contract";
 import { ARC_USDC_ADDRESS, CCTP_DESTINATION_CHAINS } from "@/lib/cctp";
 import { useRecurringContract } from "@/hooks/useRecurringContract";
@@ -205,11 +206,21 @@ export function CctpBridgeForm() {
     const startTimestamp = Math.floor(startTimestampMs / 1000);
 
     try {
+      const approveGas = await estimateBufferedContractGas({
+        client: publicClient,
+        account: address,
+        abi: erc20ApprovalAbi,
+        address: ARC_USDC_ADDRESS,
+        functionName: "approve",
+        args: [recurringPaymentAddress, totalDeposit],
+      });
+
       const approveHash = await writeContractAsync({
         abi: erc20ApprovalAbi,
         address: ARC_USDC_ADDRESS,
         functionName: "approve",
         args: [recurringPaymentAddress, totalDeposit],
+        gas: approveGas,
       });
 
       const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash });
@@ -234,6 +245,23 @@ export function CctpBridgeForm() {
         account: address,
       });
 
+      const createGas = await estimateBufferedContractGas({
+        client: publicClient,
+        account: address,
+        abi: recurringPaymentAbi,
+        address: recurringPaymentAddress,
+        functionName: "createSchedule",
+        args: [
+          executorRecipient,
+          ARC_USDC_ADDRESS,
+          amountPerPayment,
+          Number(data.totalPayments),
+          BigInt(startTimestamp),
+          BigInt(intervalSeconds),
+          executorReward,
+        ],
+      });
+
       const createHash = await writeContractAsync({
         abi: recurringPaymentAbi,
         address: recurringPaymentAddress,
@@ -247,6 +275,7 @@ export function CctpBridgeForm() {
           BigInt(intervalSeconds),
           executorReward,
         ],
+        gas: createGas,
       });
 
       const createReceipt = await publicClient.waitForTransactionReceipt({ hash: createHash });

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { frequencyOptions } from "@/lib/frequencies";
+import { estimateBufferedContractGas } from "@/lib/gas";
 import { recurringPaymentAbi, recurringPaymentAddress } from "@/lib/contract";
 import { useRecurringContract } from "@/hooks/useRecurringContract";
 
@@ -203,12 +204,22 @@ export function CreateScheduleForm() {
     const startTimestamp = Math.floor(startTimestampMs / 1000);
 
     try {
+      const approveGas = await estimateBufferedContractGas({
+        client: publicClient,
+        account: address,
+        abi: erc20ApprovalAbi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "approve",
+        args: [recurringPaymentAddress, totalDeposit],
+      });
+
       // Step 1: approve contract to pull escrow amount from user's wallet.
       const approveHash = await writeContractAsync({
         abi: erc20ApprovalAbi,
         address: tokenAddress as `0x${string}`,
         functionName: "approve",
         args: [recurringPaymentAddress, totalDeposit],
+        gas: approveGas,
       });
 
       const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash });
@@ -233,6 +244,23 @@ export function CreateScheduleForm() {
         account: address,
       });
 
+      const createGas = await estimateBufferedContractGas({
+        client: publicClient,
+        account: address,
+        abi: recurringPaymentAbi,
+        address: recurringPaymentAddress,
+        functionName: "createSchedule",
+        args: [
+          data.recipient as `0x${string}`,
+          tokenAddress as `0x${string}`,
+          amountPerPayment,
+          Number(data.totalPayments),
+          BigInt(startTimestamp),
+          BigInt(intervalSeconds),
+          executorReward,
+        ],
+      });
+
       // Step 2: create schedule and transfer funds into escrow via safeTransferFrom.
       const createHash = await writeContractAsync({
         abi: recurringPaymentAbi,
@@ -247,6 +275,7 @@ export function CreateScheduleForm() {
           BigInt(intervalSeconds),
           executorReward,
         ],
+        gas: createGas,
       });
 
       const createReceipt = await publicClient.waitForTransactionReceipt({ hash: createHash });
