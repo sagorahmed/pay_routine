@@ -166,7 +166,10 @@ export async function getPendingCrossChainBridgePayments(limit = 50): Promise<Pe
         ON cbh.source_payment_tx_hash = ph.tx_hash
       WHERE ph.status = 'success'
         AND ccs.active = TRUE
-        AND cbh.source_payment_tx_hash IS NULL
+        AND (
+          cbh.source_payment_tx_hash IS NULL
+          OR cbh.status = 'failed'
+        )
       ORDER BY ph.executed_at ASC
       LIMIT $1
     `,

@@ -59,6 +59,7 @@ Set real values in `.env`:
 - `NOTIFICATION_ENDPOINT`: optional webhook/API URL
 - `LOG_LEVEL`: usually `info`
 - `CCTP_HTTP_TIMEOUT_MS`: HTTP timeout for attestation API calls, usually `15000`
+- `BRIDGE_OPERATION_TIMEOUT_MS`: max time per bridge attempt before fail-and-retry, usually `120000`
 
 ## 4) Start bot in 24/7 mode (recommended)
 

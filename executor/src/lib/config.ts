@@ -30,6 +30,7 @@ const envSchema = z.object({
     .default("0x3600000000000000000000000000000000000000"),
   CCTP_ATTESTATION_API_BASE: z.string().url().default("https://iris-api-sandbox.circle.com"),
   CCTP_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  BRIDGE_OPERATION_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
   CCTP_ATTESTATION_POLL_MS: z.coerce.number().int().positive().default(5000),
   CCTP_ATTESTATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(180),
   CCTP_MIN_FINALITY_THRESHOLD: z.coerce.number().int().min(1000).default(2000),

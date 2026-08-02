@@ -50,8 +50,26 @@ async function retry<T>(fn: () => Promise<T>, retries: number, baseDelay = 1500)
   }
 }
 
+async function withTimeout<T>(task: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    task
+      .then((value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+  });
+}
+
 async function backfillPendingCrossChainBridges() {
-  const pending = await getPendingCrossChainBridgePayments(100);
+  const pending = await getPendingCrossChainBridgePayments(10);
   if (pending.length === 0) {
     return;
   }
@@ -62,14 +80,18 @@ async function backfillPendingCrossChainBridges() {
     try {
       const amount = BigInt(row.amount);
 
-      const bridgeResult = await bridgeDuePaymentFromArc({
-        amount,
-        destinationChainId: row.destination_chain_id,
-        destinationDomain: row.destination_domain,
-        destinationRecipient: row.destination_recipient as `0x${string}`,
-        destinationUsdcAddress: row.destination_usdc_address as `0x${string}`,
-        messageTransmitterAddress: row.message_transmitter_address as `0x${string}`,
-      });
+      const bridgeResult = await withTimeout(
+        bridgeDuePaymentFromArc({
+          amount,
+          destinationChainId: row.destination_chain_id,
+          destinationDomain: row.destination_domain,
+          destinationRecipient: row.destination_recipient as `0x${string}`,
+          destinationUsdcAddress: row.destination_usdc_address as `0x${string}`,
+          messageTransmitterAddress: row.message_transmitter_address as `0x${string}`,
+        }),
+        config.BRIDGE_OPERATION_TIMEOUT_MS,
+        `Bridge operation timed out for schedule ${row.schedule_id}`,
+      );
 
       await upsertCctpBridgeHistory({
         scheduleId: row.schedule_id,
@@ -212,14 +234,18 @@ export async function runExecutionCycle() {
               "Starting recurring CCTP bridge",
             );
 
-            const bridgeResult = await bridgeDuePaymentFromArc({
-              amount: onChain.amountPerPayment,
-              destinationChainId: crossChain.destination_chain_id,
-              destinationDomain: crossChain.destination_domain,
-              destinationRecipient: crossChain.destination_recipient as `0x${string}`,
-              destinationUsdcAddress: crossChain.destination_usdc_address as `0x${string}`,
-              messageTransmitterAddress: crossChain.message_transmitter_address as `0x${string}`,
-            });
+            const bridgeResult = await withTimeout(
+              bridgeDuePaymentFromArc({
+                amount: onChain.amountPerPayment,
+                destinationChainId: crossChain.destination_chain_id,
+                destinationDomain: crossChain.destination_domain,
+                destinationRecipient: crossChain.destination_recipient as `0x${string}`,
+                destinationUsdcAddress: crossChain.destination_usdc_address as `0x${string}`,
+                messageTransmitterAddress: crossChain.message_transmitter_address as `0x${string}`,
+              }),
+              config.BRIDGE_OPERATION_TIMEOUT_MS,
+              `Bridge operation timed out for schedule ${row.schedule_id}`,
+            );
 
             await upsertCctpBridgeHistory({
               scheduleId: row.schedule_id,
