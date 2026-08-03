@@ -76,11 +76,29 @@ function getDestinationRpcUrl(chainId: number, chain: Chain): string {
   if (chainId === baseSepolia.id && config.BASE_SEPOLIA_RPC_URL) return config.BASE_SEPOLIA_RPC_URL;
   if (chainId === polygonAmoy.id && config.POLYGON_AMOY_RPC_URL) return config.POLYGON_AMOY_RPC_URL;
 
-  const fallback = chain.rpcUrls.default.http[0];
-  if (!fallback) {
-    throw new Error(`No RPC URL configured for destination chain id ${chainId}`);
+  const envVarName =
+    chainId === sepolia.id
+      ? "ETHEREUM_SEPOLIA_RPC_URL"
+      : chainId === avalancheFuji.id
+        ? "AVALANCHE_FUJI_RPC_URL"
+        : chainId === optimismSepolia.id
+          ? "OPTIMISM_SEPOLIA_RPC_URL"
+          : chainId === arbitrumSepolia.id
+            ? "ARBITRUM_SEPOLIA_RPC_URL"
+            : chainId === baseSepolia.id
+              ? "BASE_SEPOLIA_RPC_URL"
+              : chainId === polygonAmoy.id
+                ? "POLYGON_AMOY_RPC_URL"
+                : null;
+
+  if (envVarName) {
+    throw new Error(
+      `Missing ${envVarName} for destination chain ${chain.name} (${chainId}). ` +
+        "Public fallback RPCs are disabled for CCTP minting because they are often rate-limited or blocked from VPS IPs.",
+    );
   }
-  return fallback;
+
+  throw new Error(`No RPC URL configured for destination chain id ${chainId}`);
 }
 
 function sleep(ms: number): Promise<void> {

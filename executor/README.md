@@ -82,7 +82,9 @@ Optional (defaults shown are applied automatically if unset):
 - `CCTP_ATTESTATION_MAX_ATTEMPTS`: max attestation poll attempts, default `180`
 - `CCTP_MIN_FINALITY_THRESHOLD`: min finality threshold for `depositForBurn`, default `2000`
 - `BRIDGE_OPERATION_TIMEOUT_MS`: max time per bridge attempt before fail-and-retry, default `1200000` (20 min). Must stay comfortably larger than `CCTP_ATTESTATION_MAX_ATTEMPTS * CCTP_ATTESTATION_POLL_MS`, or every bridge will be aborted before attestation/mint can finish — the app now refuses to start if this isn't the case
-- Destination RPC URLs (needed for any destination chain you actually bridge to): `ETHEREUM_SEPOLIA_RPC_URL`, `AVALANCHE_FUJI_RPC_URL`, `OPTIMISM_SEPOLIA_RPC_URL`, `ARBITRUM_SEPOLIA_RPC_URL`, `BASE_SEPOLIA_RPC_URL`, `POLYGON_AMOY_RPC_URL` — if omitted, the chain's public default RPC is used, which may be rate-limited
+- Destination RPC URLs (required for any destination chain you actually bridge to): `ETHEREUM_SEPOLIA_RPC_URL`, `AVALANCHE_FUJI_RPC_URL`, `OPTIMISM_SEPOLIA_RPC_URL`, `ARBITRUM_SEPOLIA_RPC_URL`, `BASE_SEPOLIA_RPC_URL`, `POLYGON_AMOY_RPC_URL`
+
+Public fallback RPCs are intentionally disabled for destination-chain CCTP minting. They frequently return 403/rate-limit/anti-bot responses from VPS IPs, which breaks `receiveMessage` even though the burn on Arc already succeeded.
 
 > The full validation schema lives in [src/lib/config.ts](src/lib/config.ts) — treat it as the source of truth if this list drifts.
 
@@ -186,6 +188,10 @@ pm2 logs payroutine-executor
 	- Confirm destination chain RPC URL env vars are set for your selected destination chain
 	- Confirm wallet has gas balance
 	- Confirm schedule is active and due
+- `HttpRequestError` with 403/Cloudflare/blocked page on destination-chain RPC during CCTP bridge:
+	- Your executor is hitting a public fallback RPC that is rejecting your VPS IP
+	- Set a private/project RPC URL for that destination chain in `.env` (for Fuji use `AVALANCHE_FUJI_RPC_URL`)
+	- Restart the executor after updating `.env`; the backfill loop will retry pending bridges using the stored burn tx hash
 - `Transaction creation failed` / `out of gas: gas required exceeds: <small number>` on `approve`/`depositForBurn`/`executePayment`:
 	- This almost always means the executor wallet's native ARC balance is too low to cover gas at the current `maxFeePerGas`. RPC nodes cap the `eth_estimateGas` search range to what the sender can afford, so a near-empty wallet produces a misleading low "required gas" number instead of a clear insufficient-funds error
 	- Check the balance of the address derived from `PRIVATE_KEY` on the Arc chain and top it up
