@@ -98,7 +98,7 @@ export async function upsertCctpBridgeHistory(input: {
   destinationChainId: number;
   destinationDomain: number;
   amount: string;
-  status: "success" | "failed";
+  status: "success" | "failed" | "burned";
   reason?: string;
 }) {
   await db.query(
@@ -145,6 +145,8 @@ export type PendingCrossChainBridgePayment = {
   destination_recipient: string;
   destination_usdc_address: string;
   message_transmitter_address: string;
+  // Present when a prior attempt already burned on Arc; resume from attestation instead of re-burning.
+  burn_tx_hash: string | null;
 };
 
 export async function getPendingCrossChainBridgePayments(limit = 50): Promise<PendingCrossChainBridgePayment[]> {
@@ -158,7 +160,8 @@ export async function getPendingCrossChainBridgePayments(limit = 50): Promise<Pe
         ccs.destination_domain,
         ccs.destination_recipient,
         ccs.destination_usdc_address,
-        ccs.message_transmitter_address
+        ccs.message_transmitter_address,
+        cbh.burn_tx_hash
       FROM payment_history ph
       INNER JOIN cross_chain_schedules ccs
         ON ccs.schedule_id = ph.schedule_id
@@ -168,7 +171,7 @@ export async function getPendingCrossChainBridgePayments(limit = 50): Promise<Pe
         AND ccs.active = TRUE
         AND (
           cbh.source_payment_tx_hash IS NULL
-          OR cbh.status = 'failed'
+          OR cbh.status IN ('failed', 'burned')
         )
       ORDER BY ph.executed_at ASC
       LIMIT $1

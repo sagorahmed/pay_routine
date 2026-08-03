@@ -77,6 +77,8 @@ async function backfillPendingCrossChainBridges() {
   logger.info({ pendingBridgeCount: pending.length }, "Processing pending cross-chain bridge backlog");
 
   for (const row of pending) {
+    let capturedBurnTxHash = (row.burn_tx_hash as `0x${string}` | null) ?? undefined;
+
     try {
       const amount = BigInt(row.amount);
 
@@ -88,6 +90,19 @@ async function backfillPendingCrossChainBridges() {
           destinationRecipient: row.destination_recipient as `0x${string}`,
           destinationUsdcAddress: row.destination_usdc_address as `0x${string}`,
           messageTransmitterAddress: row.message_transmitter_address as `0x${string}`,
+          existingBurnTxHash: capturedBurnTxHash,
+          onBurnConfirmed: async (burnTxHash) => {
+            capturedBurnTxHash = burnTxHash;
+            await upsertCctpBridgeHistory({
+              scheduleId: row.schedule_id,
+              sourcePaymentTxHash: row.source_payment_tx_hash,
+              burnTxHash,
+              destinationChainId: row.destination_chain_id,
+              destinationDomain: row.destination_domain,
+              amount: row.amount,
+              status: "burned",
+            });
+          },
         }),
         config.BRIDGE_OPERATION_TIMEOUT_MS,
         `Bridge operation timed out for schedule ${row.schedule_id}`,
@@ -112,6 +127,7 @@ async function backfillPendingCrossChainBridges() {
       await upsertCctpBridgeHistory({
         scheduleId: row.schedule_id,
         sourcePaymentTxHash: row.source_payment_tx_hash,
+        burnTxHash: capturedBurnTxHash,
         destinationChainId: row.destination_chain_id,
         destinationDomain: row.destination_domain,
         amount: row.amount,
@@ -220,6 +236,8 @@ export async function runExecutionCycle() {
         const crossChain = await getCrossChainSchedule(row.schedule_id);
 
         if (crossChain) {
+          let capturedBurnTxHash: `0x${string}` | undefined;
+
           try {
             if (onChain.token.toLowerCase() !== (config.ARC_USDC_ADDRESS as string).toLowerCase()) {
               throw new Error("Cross-chain schedule token must be Arc USDC");
@@ -242,6 +260,18 @@ export async function runExecutionCycle() {
                 destinationRecipient: crossChain.destination_recipient as `0x${string}`,
                 destinationUsdcAddress: crossChain.destination_usdc_address as `0x${string}`,
                 messageTransmitterAddress: crossChain.message_transmitter_address as `0x${string}`,
+                onBurnConfirmed: async (burnTxHash) => {
+                  capturedBurnTxHash = burnTxHash;
+                  await upsertCctpBridgeHistory({
+                    scheduleId: row.schedule_id,
+                    sourcePaymentTxHash: txHash,
+                    burnTxHash,
+                    destinationChainId: crossChain.destination_chain_id,
+                    destinationDomain: crossChain.destination_domain,
+                    amount: String(onChain.amountPerPayment),
+                    status: "burned",
+                  });
+                },
               }),
               config.BRIDGE_OPERATION_TIMEOUT_MS,
               `Bridge operation timed out for schedule ${row.schedule_id}`,
@@ -280,6 +310,7 @@ export async function runExecutionCycle() {
             await upsertCctpBridgeHistory({
               scheduleId: row.schedule_id,
               sourcePaymentTxHash: txHash,
+              burnTxHash: capturedBurnTxHash,
               destinationChainId: crossChain.destination_chain_id,
               destinationDomain: crossChain.destination_domain,
               amount: String(onChain.amountPerPayment),

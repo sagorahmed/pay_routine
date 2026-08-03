@@ -145,59 +145,71 @@ export async function bridgeDuePaymentFromArc(input: {
   destinationRecipient: `0x${string}`;
   destinationUsdcAddress: `0x${string}`;
   messageTransmitterAddress: `0x${string}`;
+  // Set when resuming a bridge whose burn already landed on Arc in a prior attempt.
+  existingBurnTxHash?: `0x${string}`;
+  // Invoked right after the burn confirms so the caller can persist it before attestation/mint.
+  onBurnConfirmed?: (burnTxHash: `0x${string}`) => Promise<void>;
 }): Promise<{ burnTxHash: `0x${string}`; mintTxHash: `0x${string}` }> {
   if (input.amount <= BigInt(0)) {
     throw new Error("Bridge amount must be greater than zero");
   }
 
-  const arcBalance = await publicClient.getBalance({ address: executorAddress });
-  const arcGasPrice = await publicClient.getGasPrice();
-  const estimatedArcGasCost = ARC_BRIDGE_GAS_ESTIMATE * arcGasPrice;
+  let burnTxHash = input.existingBurnTxHash;
 
-  if (arcBalance < estimatedArcGasCost) {
-    throw new Error(
-      [
-        "Insufficient Arc-chain gas balance for CCTP approve/depositForBurn.",
-        `Executor wallet: ${executorAddress}`,
-        `Current balance: ${formatEther(arcBalance)} ARC`,
-        `Estimated required: ${formatEther(estimatedArcGasCost)} ARC`,
-      ].join(" "),
-    );
-  }
+  if (!burnTxHash) {
+    const arcBalance = await publicClient.getBalance({ address: executorAddress });
+    const arcGasPrice = await publicClient.getGasPrice();
+    const estimatedArcGasCost = ARC_BRIDGE_GAS_ESTIMATE * arcGasPrice;
 
-  const approveHash = await walletClient.writeContract({
-    abi: cctpErc20Abi,
-    address: config.ARC_USDC_ADDRESS as `0x${string}`,
-    functionName: "approve",
-    args: [config.ARC_TOKEN_MESSENGER_ADDRESS as `0x${string}`, input.amount],
-  });
+    if (arcBalance < estimatedArcGasCost) {
+      throw new Error(
+        [
+          "Insufficient Arc-chain gas balance for CCTP approve/depositForBurn.",
+          `Executor wallet: ${executorAddress}`,
+          `Current balance: ${formatEther(arcBalance)} ARC`,
+          `Estimated required: ${formatEther(estimatedArcGasCost)} ARC`,
+        ].join(" "),
+      );
+    }
 
-  const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash });
-  if (approveReceipt.status !== "success") {
-    throw new Error("CCTP approve transaction failed on Arc");
-  }
+    const approveHash = await walletClient.writeContract({
+      abi: cctpErc20Abi,
+      address: config.ARC_USDC_ADDRESS as `0x${string}`,
+      functionName: "approve",
+      args: [config.ARC_TOKEN_MESSENGER_ADDRESS as `0x${string}`, input.amount],
+    });
 
-  const mintRecipient = pad(input.destinationRecipient, { size: 32 });
-  const destinationCaller = pad("0x", { size: 32 });
+    const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash });
+    if (approveReceipt.status !== "success") {
+      throw new Error("CCTP approve transaction failed on Arc");
+    }
 
-  const burnTxHash = await walletClient.writeContract({
-    abi: cctpTokenMessengerAbi,
-    address: config.ARC_TOKEN_MESSENGER_ADDRESS as `0x${string}`,
-    functionName: "depositForBurn",
-    args: [
-      input.amount,
-      input.destinationDomain,
-      mintRecipient,
-      config.ARC_USDC_ADDRESS as `0x${string}`,
-      destinationCaller,
-      BigInt(0),
-      config.CCTP_MIN_FINALITY_THRESHOLD,
-    ],
-  });
+    const mintRecipient = pad(input.destinationRecipient, { size: 32 });
+    const destinationCaller = pad("0x", { size: 32 });
 
-  const burnReceipt = await publicClient.waitForTransactionReceipt({ hash: burnTxHash });
-  if (burnReceipt.status !== "success") {
-    throw new Error("CCTP burn transaction failed on Arc");
+    burnTxHash = await walletClient.writeContract({
+      abi: cctpTokenMessengerAbi,
+      address: config.ARC_TOKEN_MESSENGER_ADDRESS as `0x${string}`,
+      functionName: "depositForBurn",
+      args: [
+        input.amount,
+        input.destinationDomain,
+        mintRecipient,
+        config.ARC_USDC_ADDRESS as `0x${string}`,
+        destinationCaller,
+        BigInt(0),
+        config.CCTP_MIN_FINALITY_THRESHOLD,
+      ],
+    });
+
+    const burnReceipt = await publicClient.waitForTransactionReceipt({ hash: burnTxHash });
+    if (burnReceipt.status !== "success") {
+      throw new Error("CCTP burn transaction failed on Arc");
+    }
+
+    if (input.onBurnConfirmed) {
+      await input.onBurnConfirmed(burnTxHash);
+    }
   }
 
   const attestedMessage = await pollAttestation(config.ARC_CCTP_DOMAIN, burnTxHash);
