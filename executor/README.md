@@ -8,7 +8,6 @@ Minute-interval automation service that executes due recurring payments.
 - On-chain due verification
 - Payment execution with retries
 - DB payment history updates
-- Notification dispatch
 - PM2-ready process config
 
 ## What you need before starting
@@ -33,7 +32,7 @@ npm -v
 pm2 -v
 ```
 
-This service makes only outbound connections (RPC, Postgres, attestation API, notification webhook) and doesn't listen on any port, so no inbound firewall rule is needed for it. If `ufw` is enabled on the VPS, just make sure SSH stays allowed:
+This service makes only outbound connections (RPC, Postgres, attestation API) and doesn't listen on any port, so no inbound firewall rule is needed for it. If `ufw` is enabled on the VPS, just make sure SSH stays allowed:
 
 ```bash
 sudo ufw allow OpenSSH
@@ -73,7 +72,6 @@ Optional (defaults shown are applied automatically if unset):
 
 - `CHECK_INTERVAL_MS`: poll interval, default `60000`
 - `RETRY_LIMIT`: retry attempts, default `5`
-- `NOTIFICATION_ENDPOINT`: optional webhook/API URL for `notifications.ts`
 - `LOG_LEVEL`: pino log level (`info`, `debug`, etc.), default `info`
 - `ARC_CCTP_DOMAIN`: Arc's CCTP domain id, default `26`
 - `ARC_TOKEN_MESSENGER_ADDRESS`: CCTP TokenMessenger on Arc, defaults to the testnet deployment

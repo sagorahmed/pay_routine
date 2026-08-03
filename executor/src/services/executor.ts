@@ -10,7 +10,6 @@ import {
   upsertPaymentHistory,
 } from "../lib/db";
 import { logger } from "../lib/logger";
-import { sendNotification } from "./notifications";
 
 type OnChainSchedule = {
   creator: `0x${string}`;
@@ -317,25 +316,9 @@ export async function runExecutionCycle() {
               status: "failed",
               reason: bridgeError instanceof Error ? bridgeError.message : "Unknown cross-chain bridge error",
             });
-
-            await sendNotification({
-              type: "execution_failed",
-              scheduleId: row.schedule_id,
-              reason:
-                bridgeError instanceof Error
-                  ? `Cross-chain bridge failed after executePayment: ${bridgeError.message}`
-                  : "Cross-chain bridge failed after executePayment",
-            });
           }
         }
       }
-
-      await sendNotification({
-        type: "payment_executed",
-        scheduleId: row.schedule_id,
-        txHash,
-        status: receipt.status,
-      });
 
       logger.info({ scheduleId: row.schedule_id, txHash }, "Payment execution complete");
     } catch (error) {
@@ -348,12 +331,6 @@ export async function runExecutionCycle() {
         amount: "0",
         status: "failed",
         reason: error instanceof Error ? error.message : "Unknown error",
-      });
-
-      await sendNotification({
-        type: "execution_failed",
-        scheduleId: row.schedule_id,
-        reason: error instanceof Error ? error.message : "Unknown",
       });
     }
   }

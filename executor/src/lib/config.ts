@@ -42,7 +42,6 @@ const envSchema = z.object({
   ARBITRUM_SEPOLIA_RPC_URL: z.string().url().optional(),
   BASE_SEPOLIA_RPC_URL: z.string().url().optional(),
   POLYGON_AMOY_RPC_URL: z.string().url().optional(),
-  NOTIFICATION_ENDPOINT: z.string().url().optional(),
 }).superRefine((data, ctx) => {
   const attestationWindowMs = data.CCTP_ATTESTATION_MAX_ATTEMPTS * data.CCTP_ATTESTATION_POLL_MS;
   const minBridgeTimeoutMs = attestationWindowMs + 300_000;
