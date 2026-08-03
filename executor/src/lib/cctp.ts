@@ -14,6 +14,9 @@ import { config } from "./config";
 
 // Conservative combined gas budget for the Arc-side approve + depositForBurn calls.
 const ARC_BRIDGE_GAS_ESTIMATE = 250_000n;
+const GAS_BUFFER_NUMERATOR = 12n;
+const GAS_BUFFER_DENOMINATOR = 10n;
+const MAX_REASONABLE_CCTP_MINT_GAS = 10_000_000n;
 
 const cctpErc20Abi = [
   {
@@ -263,8 +266,19 @@ export async function bridgeDuePaymentFromArc(input: {
     args: [attestedMessage.message as `0x${string}`, attestedMessage.attestation as `0x${string}`],
   });
 
+  const bufferedGas = (estimatedGas * GAS_BUFFER_NUMERATOR) / GAS_BUFFER_DENOMINATOR;
+  if (bufferedGas > MAX_REASONABLE_CCTP_MINT_GAS) {
+    throw new Error(
+      [
+        `Destination-chain gas estimate for CCTP mint is unreasonably high on ${destinationChain.name}.`,
+        `Estimated gas: ${bufferedGas.toString()}`,
+        "This usually means the RPC returned a malformed estimate or the message is not valid for receiveMessage.",
+      ].join(" "),
+    );
+  }
+
   const gasPrice = await destinationPublicClient.getGasPrice();
-  const estimatedNativeCost = estimatedGas * gasPrice;
+  const estimatedNativeCost = bufferedGas * gasPrice;
 
   if (destinationBalance < estimatedNativeCost) {
     throw new Error(
@@ -282,6 +296,8 @@ export async function bridgeDuePaymentFromArc(input: {
     address: input.messageTransmitterAddress,
     functionName: "receiveMessage",
     args: [attestedMessage.message as `0x${string}`, attestedMessage.attestation as `0x${string}`],
+    gas: bufferedGas,
+    gasPrice,
   });
 
   const mintReceipt = await destinationPublicClient.waitForTransactionReceipt({ hash: mintTxHash });
