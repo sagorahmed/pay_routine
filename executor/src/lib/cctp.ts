@@ -9,8 +9,11 @@ import {
   sepolia,
   type Chain,
 } from "viem/chains";
-import { publicClient, walletClient } from "./chain";
+import { executorAddress, publicClient, walletClient } from "./chain";
 import { config } from "./config";
+
+// Conservative combined gas budget for the Arc-side approve + depositForBurn calls.
+const ARC_BRIDGE_GAS_ESTIMATE = 250_000n;
 
 const cctpErc20Abi = [
   {
@@ -145,6 +148,21 @@ export async function bridgeDuePaymentFromArc(input: {
 }): Promise<{ burnTxHash: `0x${string}`; mintTxHash: `0x${string}` }> {
   if (input.amount <= BigInt(0)) {
     throw new Error("Bridge amount must be greater than zero");
+  }
+
+  const arcBalance = await publicClient.getBalance({ address: executorAddress });
+  const arcGasPrice = await publicClient.getGasPrice();
+  const estimatedArcGasCost = ARC_BRIDGE_GAS_ESTIMATE * arcGasPrice;
+
+  if (arcBalance < estimatedArcGasCost) {
+    throw new Error(
+      [
+        "Insufficient Arc-chain gas balance for CCTP approve/depositForBurn.",
+        `Executor wallet: ${executorAddress}`,
+        `Current balance: ${formatEther(arcBalance)} ARC`,
+        `Estimated required: ${formatEther(estimatedArcGasCost)} ARC`,
+      ].join(" "),
+    );
   }
 
   const approveHash = await walletClient.writeContract({

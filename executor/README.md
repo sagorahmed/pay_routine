@@ -33,6 +33,15 @@ npm -v
 pm2 -v
 ```
 
+This service makes only outbound connections (RPC, Postgres, attestation API, notification webhook) and doesn't listen on any port, so no inbound firewall rule is needed for it. If `ufw` is enabled on the VPS, just make sure SSH stays allowed:
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw status
+```
+
+If `DATABASE_URL` points to a managed/remote Postgres instance (Neon, Supabase, RDS, etc.), append `?sslmode=require` unless the provider already documents a different SSL mode.
+
 ## 2) Clone project and move to executor
 
 ```bash
@@ -45,21 +54,41 @@ npm install
 
 ```bash
 cp .env.example .env
+chmod 600 .env
 ```
+
+`chmod 600` restricts the file to the owning user only — `.env` holds `PRIVATE_KEY`, so it should never be world/group readable on a shared VPS.
 
 Set real values in `.env`:
 
-- `PRIVATE_KEY`: executor wallet private key (test wallet only)
+Required:
+
+- `PRIVATE_KEY`: executor wallet private key (test wallet only), with or without `0x` prefix
 - `RPC_URL`: Arc RPC endpoint
-- `CONTRACT_ADDRESS`: deployed RecurringPayment contract
+- `CONTRACT_ADDRESS`: deployed RecurringPayment contract (42-char `0x` address)
 - `CHAIN_ID`: Arc chain id
 - `DATABASE_URL`: Postgres connection string
-- `CHECK_INTERVAL_MS`: poll interval, usually `60000`
-- `RETRY_LIMIT`: retry attempts, usually `5`
-- `NOTIFICATION_ENDPOINT`: optional webhook/API URL
-- `LOG_LEVEL`: usually `info`
-- `CCTP_HTTP_TIMEOUT_MS`: HTTP timeout for attestation API calls, usually `15000`
-- `BRIDGE_OPERATION_TIMEOUT_MS`: max time per bridge attempt before fail-and-retry, usually `120000`
+
+Optional (defaults shown are applied automatically if unset):
+
+- `CHECK_INTERVAL_MS`: poll interval, default `60000`
+- `RETRY_LIMIT`: retry attempts, default `5`
+- `NOTIFICATION_ENDPOINT`: optional webhook/API URL for `notifications.ts`
+- `LOG_LEVEL`: pino log level (`info`, `debug`, etc.), default `info`
+- `ARC_CCTP_DOMAIN`: Arc's CCTP domain id, default `26`
+- `ARC_TOKEN_MESSENGER_ADDRESS`: CCTP TokenMessenger on Arc, defaults to the testnet deployment
+- `ARC_USDC_ADDRESS`: native USDC contract/precompile on Arc, defaults to the testnet address
+- `CCTP_ATTESTATION_API_BASE`: Circle Iris attestation API base URL, default sandbox URL
+- `CCTP_HTTP_TIMEOUT_MS`: HTTP timeout for attestation API calls, default `15000`
+- `CCTP_ATTESTATION_POLL_MS`: delay between attestation polls, default `5000`
+- `CCTP_ATTESTATION_MAX_ATTEMPTS`: max attestation poll attempts, default `180`
+- `CCTP_MIN_FINALITY_THRESHOLD`: min finality threshold for `depositForBurn`, default `2000`
+- `BRIDGE_OPERATION_TIMEOUT_MS`: max time per bridge attempt before fail-and-retry, default `120000`
+- Destination RPC URLs (needed for any destination chain you actually bridge to): `ETHEREUM_SEPOLIA_RPC_URL`, `AVALANCHE_FUJI_RPC_URL`, `OPTIMISM_SEPOLIA_RPC_URL`, `ARBITRUM_SEPOLIA_RPC_URL`, `BASE_SEPOLIA_RPC_URL`, `POLYGON_AMOY_RPC_URL` — if omitted, the chain's public default RPC is used, which may be rate-limited
+
+> The full validation schema lives in [src/lib/config.ts](src/lib/config.ts) — treat it as the source of truth if this list drifts.
+
+**Fund the executor wallet:** the address derived from `PRIVATE_KEY` needs a native ARC balance on the Arc chain (for `executePayment`, CCTP `approve`, and `depositForBurn` gas) *and*, separately, native gas on every destination chain you bridge to (for `receiveMessage`). An empty/low balance causes cryptic `eth_estimateGas` / "out of gas" errors rather than a clear insufficient-funds message.
 
 ## 4) Start bot in 24/7 mode (recommended)
 
@@ -159,5 +188,9 @@ pm2 logs payroutine-executor
 	- Confirm destination chain RPC URL env vars are set for your selected destination chain
 	- Confirm wallet has gas balance
 	- Confirm schedule is active and due
+- `Transaction creation failed` / `out of gas: gas required exceeds: <small number>` on `approve`/`depositForBurn`/`executePayment`:
+	- This almost always means the executor wallet's native ARC balance is too low to cover gas at the current `maxFeePerGas`. RPC nodes cap the `eth_estimateGas` search range to what the sender can afford, so a near-empty wallet produces a misleading low "required gas" number instead of a clear insufficient-funds error
+	- Check the balance of the address derived from `PRIVATE_KEY` on the Arc chain and top it up
+	- The executor now runs a pre-flight ARC balance check before CCTP `approve`/`depositForBurn` and will throw a clear `Insufficient Arc-chain gas balance` error instead of this viem error once funded correctly
 - Duplicate executions:
 	- Ensure only one PM2 instance is running (`npm run bot:status`)
