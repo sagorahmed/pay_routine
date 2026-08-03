@@ -30,7 +30,9 @@ const envSchema = z.object({
     .default("0x3600000000000000000000000000000000000000"),
   CCTP_ATTESTATION_API_BASE: z.string().url().default("https://iris-api-sandbox.circle.com"),
   CCTP_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
-  BRIDGE_OPERATION_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  // Must comfortably exceed CCTP_ATTESTATION_MAX_ATTEMPTS * CCTP_ATTESTATION_POLL_MS or the
+  // bridge is aborted before attestation/mint can ever complete (see superRefine check below).
+  BRIDGE_OPERATION_TIMEOUT_MS: z.coerce.number().int().positive().default(1_200_000),
   CCTP_ATTESTATION_POLL_MS: z.coerce.number().int().positive().default(5000),
   CCTP_ATTESTATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(180),
   CCTP_MIN_FINALITY_THRESHOLD: z.coerce.number().int().min(1000).default(2000),
@@ -41,6 +43,20 @@ const envSchema = z.object({
   BASE_SEPOLIA_RPC_URL: z.string().url().optional(),
   POLYGON_AMOY_RPC_URL: z.string().url().optional(),
   NOTIFICATION_ENDPOINT: z.string().url().optional(),
+}).superRefine((data, ctx) => {
+  const attestationWindowMs = data.CCTP_ATTESTATION_MAX_ATTEMPTS * data.CCTP_ATTESTATION_POLL_MS;
+  const minBridgeTimeoutMs = attestationWindowMs + 300_000;
+
+  if (data.BRIDGE_OPERATION_TIMEOUT_MS < minBridgeTimeoutMs) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["BRIDGE_OPERATION_TIMEOUT_MS"],
+      message:
+        `BRIDGE_OPERATION_TIMEOUT_MS (${data.BRIDGE_OPERATION_TIMEOUT_MS}ms) is smaller than the CCTP attestation ` +
+        `polling window (CCTP_ATTESTATION_MAX_ATTEMPTS * CCTP_ATTESTATION_POLL_MS = ${attestationWindowMs}ms). ` +
+        `The bridge would always abort before attestation/mint can complete. Set it to at least ${minBridgeTimeoutMs}ms.`,
+    });
+  }
 });
 
 export const config = envSchema.parse(process.env);

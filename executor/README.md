@@ -83,7 +83,7 @@ Optional (defaults shown are applied automatically if unset):
 - `CCTP_ATTESTATION_POLL_MS`: delay between attestation polls, default `5000`
 - `CCTP_ATTESTATION_MAX_ATTEMPTS`: max attestation poll attempts, default `180`
 - `CCTP_MIN_FINALITY_THRESHOLD`: min finality threshold for `depositForBurn`, default `2000`
-- `BRIDGE_OPERATION_TIMEOUT_MS`: max time per bridge attempt before fail-and-retry, default `120000`
+- `BRIDGE_OPERATION_TIMEOUT_MS`: max time per bridge attempt before fail-and-retry, default `1200000` (20 min). Must stay comfortably larger than `CCTP_ATTESTATION_MAX_ATTEMPTS * CCTP_ATTESTATION_POLL_MS`, or every bridge will be aborted before attestation/mint can finish — the app now refuses to start if this isn't the case
 - Destination RPC URLs (needed for any destination chain you actually bridge to): `ETHEREUM_SEPOLIA_RPC_URL`, `AVALANCHE_FUJI_RPC_URL`, `OPTIMISM_SEPOLIA_RPC_URL`, `ARBITRUM_SEPOLIA_RPC_URL`, `BASE_SEPOLIA_RPC_URL`, `POLYGON_AMOY_RPC_URL` — if omitted, the chain's public default RPC is used, which may be rate-limited
 
 > The full validation schema lives in [src/lib/config.ts](src/lib/config.ts) — treat it as the source of truth if this list drifts.

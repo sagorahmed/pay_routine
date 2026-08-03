@@ -5,7 +5,8 @@ import { logger } from "../lib/logger";
 function normalizeEndpoint(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl.trim());
-    parsed.pathname = parsed.pathname.replace(/\/\/{2,}/g, "/");
+    // Collapse 2+ consecutive slashes in the path; the previous pattern required 3+ and never matched "//".
+    parsed.pathname = parsed.pathname.replace(/\/{2,}/g, "/");
     return parsed.toString();
   } catch {
     return rawUrl.trim();
