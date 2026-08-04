@@ -32,6 +32,8 @@ type DueScheduleRow = {
   on_chain?: OnChainSchedule;
 };
 
+let lastOnChainFallbackScanAt = 0;
+
 async function retry<T>(fn: () => Promise<T>, retries: number, baseDelay = 1500): Promise<T> {
   let attempt = 0;
 
@@ -142,46 +144,63 @@ export async function runExecutionCycle() {
   let dueRows = (await getDueSchedules(now.toISOString())) as DueScheduleRow[];
 
   if (dueRows.length === 0) {
-    const nowEpoch = Math.floor(Date.now() / 1000);
-    const totalSchedules = Number(
-      (await retry(
-        async () =>
-          (await publicClient.readContract({
-            ...contract,
-            functionName: "nextScheduleId",
-          })) as bigint,
-        config.RETRY_LIMIT,
-        750,
-      )) as bigint,
-    );
+    const nowMs = Date.now();
+    const elapsedSinceFallbackScanMs = nowMs - lastOnChainFallbackScanAt;
+    const shouldRunOnChainFallbackScan =
+      lastOnChainFallbackScanAt === 0 || elapsedSinceFallbackScanMs >= config.ONCHAIN_FALLBACK_SCAN_MIN_INTERVAL_MS;
 
-    const discovered: DueScheduleRow[] = [];
-    for (let id = 0; id < totalSchedules; id += 1) {
-      const onChain = (await retry(
-        async () =>
-          (await publicClient.readContract({
-            ...contract,
-            functionName: "getSchedule",
-            args: [BigInt(id)],
-          })) as OnChainSchedule,
-        config.RETRY_LIMIT,
-        750,
-      )) as OnChainSchedule;
+    if (shouldRunOnChainFallbackScan) {
+      lastOnChainFallbackScanAt = nowMs;
 
-      const isDue = Number(onChain.nextExecution) <= nowEpoch;
-      if (!onChain.active || onChain.paused || onChain.cancelled || !isDue || onChain.remainingPayments === 0) {
-        continue;
+      const nowEpoch = Math.floor(nowMs / 1000);
+      const totalSchedules = Number(
+        (await retry(
+          async () =>
+            (await publicClient.readContract({
+              ...contract,
+              functionName: "nextScheduleId",
+            })) as bigint,
+          config.RETRY_LIMIT,
+          750,
+        )) as bigint,
+      );
+
+      const discovered: DueScheduleRow[] = [];
+      for (let id = 0; id < totalSchedules; id += 1) {
+        const onChain = (await retry(
+          async () =>
+            (await publicClient.readContract({
+              ...contract,
+              functionName: "getSchedule",
+              args: [BigInt(id)],
+            })) as OnChainSchedule,
+          config.RETRY_LIMIT,
+          750,
+        )) as OnChainSchedule;
+
+        const isDue = Number(onChain.nextExecution) <= nowEpoch;
+        if (!onChain.active || onChain.paused || onChain.cancelled || !isDue || onChain.remainingPayments === 0) {
+          continue;
+        }
+
+        discovered.push({ schedule_id: String(id), on_chain: onChain });
       }
 
-      discovered.push({ schedule_id: String(id), on_chain: onChain });
-    }
-
-    if (discovered.length > 0) {
-      logger.info(
-        { discoveredDueCount: discovered.length },
-        "No due rows in indexed_schedules; using on-chain fallback discovery",
+      if (discovered.length > 0) {
+        logger.info(
+          { discoveredDueCount: discovered.length },
+          "No due rows in indexed_schedules; using on-chain fallback discovery",
+        );
+        dueRows = discovered;
+      }
+    } else {
+      logger.debug(
+        {
+          elapsedSinceFallbackScanMs,
+          minFallbackScanIntervalMs: config.ONCHAIN_FALLBACK_SCAN_MIN_INTERVAL_MS,
+        },
+        "Skipping on-chain fallback discovery to reduce idle RPC usage",
       );
-      dueRows = discovered;
     }
   }
 

@@ -16,6 +16,7 @@ const envSchema = z.object({
   CHAIN_ID: z.coerce.number().int().positive(),
   DATABASE_URL: z.string().min(1),
   CHECK_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  ONCHAIN_FALLBACK_SCAN_MIN_INTERVAL_MS: z.coerce.number().int().positive().default(900_000),
   RETRY_LIMIT: z.coerce.number().int().positive().default(5),
   ARC_CCTP_DOMAIN: z.coerce.number().int().nonnegative().default(26),
   ARC_TOKEN_MESSENGER_ADDRESS: z

@@ -71,6 +71,7 @@ Required:
 Optional (defaults shown are applied automatically if unset):
 
 - `CHECK_INTERVAL_MS`: poll interval, default `60000`
+- `ONCHAIN_FALLBACK_SCAN_MIN_INTERVAL_MS`: minimum interval between full on-chain fallback scans when no due rows are found in DB, default `900000` (15 minutes). Increase this to reduce idle RPC usage
 - `RETRY_LIMIT`: retry attempts, default `5`
 - `LOG_LEVEL`: pino log level (`info`, `debug`, etc.), default `info`
 - `ARC_CCTP_DOMAIN`: Arc's CCTP domain id, default `26`
