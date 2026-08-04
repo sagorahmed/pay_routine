@@ -5,8 +5,9 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { useAccount, usePublicClient } from "wagmi";
-import { BaseError, parseAbi, parseUnits } from "viem";
+import { BaseError, decodeEventLog, parseAbi, parseUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -76,7 +77,11 @@ export function CreateScheduleForm() {
   const publicClient = usePublicClient();
   const startDateInputRef = useRef<HTMLInputElement>(null);
   const [reviewMode, setReviewMode] = useState(false);
-  const [successInfo, setSuccessInfo] = useState<{ approveHash: `0x${string}`; createHash: `0x${string}` } | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{
+    approveHash: `0x${string}`;
+    createHash: `0x${string}`;
+    scheduleId: string | null;
+  } | null>(null);
   const usdcTokenAddress =
     (process.env.NEXT_PUBLIC_USDC_TOKEN_ADDRESS as `0x${string}` | undefined) ??
     (process.env.NEXT_PUBLIC_USDC_TOKEN as `0x${string}` | undefined) ??
@@ -286,7 +291,28 @@ export function CreateScheduleForm() {
         return;
       }
 
-      setSuccessInfo({ approveHash, createHash });
+      let createdScheduleId: bigint | null = null;
+      for (const log of createReceipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: recurringPaymentAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+          if (decoded.eventName === "ScheduleCreated") {
+            createdScheduleId = decoded.args.scheduleId as bigint;
+            break;
+          }
+        } catch {
+          // Ignore unrelated logs.
+        }
+      }
+
+      setSuccessInfo({
+        approveHash,
+        createHash,
+        scheduleId: createdScheduleId !== null ? createdScheduleId.toString() : null,
+      });
       form.clearErrors("memo");
     } catch (error) {
       form.setError("memo", {
@@ -446,6 +472,18 @@ export function CreateScheduleForm() {
           {successInfo ? (
             <Card className="border-emerald-500/40 bg-emerald-950/20 p-4">
               <p className="text-sm font-medium text-emerald-300">Schedule created successfully on-chain</p>
+              {successInfo.scheduleId !== null ? (
+                <p className="mt-1 text-sm text-emerald-200">
+                  Schedule ID:{" "}
+                  <Link href={`/schedules/${successInfo.scheduleId}`} className="font-semibold underline">
+                    #{successInfo.scheduleId}
+                  </Link>
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-amber-300">
+                  Schedule was created, but the schedule ID could not be parsed from the transaction logs.
+                </p>
+              )}
               <p className="mt-1 text-xs text-emerald-200/80">Approve tx: {successInfo.approveHash}</p>
               <p className="text-xs text-emerald-200/80">Create tx: {successInfo.createHash}</p>
             </Card>
