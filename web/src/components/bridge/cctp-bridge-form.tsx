@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAccount, usePublicClient } from "wagmi";
 import { BaseError, decodeEventLog, parseAbi, parseUnits } from "viem";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,12 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export function CctpBridgeForm() {
+type CctpBridgeFormProps = {
+  onStageChange?: (stage: "details" | "wallet") => void;
+  onCreated?: (payload: { scheduleId: string; kind: "cctp" }) => void;
+};
+
+export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps) {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const startDateInputRef = useRef<HTMLInputElement>(null);
@@ -120,6 +125,16 @@ export function CctpBridgeForm() {
     return frequency?.seconds ?? 30 * 24 * 3600;
   }, [values.frequency]);
 
+  const showReviewCard = useMemo(() => {
+    const hasDestinationRecipient = Boolean(values.destinationRecipient?.trim());
+    const hasAmount = Number(values.amountPerPayment ?? 0) > 0;
+    const hasPayments = Number(values.totalPayments ?? 0) > 0;
+    const hasFrequency = Boolean(values.frequency);
+    const hasStartDate = Boolean(values.startDate);
+
+    return hasDestinationRecipient && hasAmount && hasPayments && hasFrequency && hasStartDate;
+  }, [values.amountPerPayment, values.destinationRecipient, values.frequency, values.startDate, values.totalPayments]);
+
   const totalEscrow = useMemo(() => {
     const payout = Number(values.amountPerPayment || 0);
     const reward = payout * (executorFeePercent / 100);
@@ -137,6 +152,14 @@ export function CctpBridgeForm() {
     const roundedToNextMinute = Math.ceil(minMs / 60000) * 60000;
     return formatDateTimeLocal(new Date(roundedToNextMinute));
   }, []);
+
+  useEffect(() => {
+    if (!onStageChange || successInfo) {
+      return;
+    }
+
+    onStageChange(isPending ? "wallet" : "details");
+  }, [isPending, onStageChange, successInfo]);
 
   async function onSubmit(data: FormValues) {
     setSuccessInfo(null);
@@ -332,6 +355,7 @@ export function CctpBridgeForm() {
       }
 
       setSuccessInfo({ approveHash, createHash, scheduleId: createdScheduleId.toString() });
+      onCreated?.({ scheduleId: createdScheduleId.toString(), kind: "cctp" });
       form.clearErrors("memo");
     } catch (error) {
       form.setError("memo", {
@@ -458,7 +482,7 @@ export function CctpBridgeForm() {
             ) : null}
           </div>
 
-          {successInfo ? (
+          {successInfo && !onCreated ? (
             <Card className="border-emerald-500/40 bg-emerald-950/20 p-4">
               <p className="text-sm font-medium text-emerald-300">Cross-chain schedule created successfully on-chain</p>
               <p className="mt-1 text-xs text-emerald-200/80">Schedule ID: {successInfo.scheduleId}</p>
@@ -467,24 +491,36 @@ export function CctpBridgeForm() {
             </Card>
           ) : null}
 
-          <Card className="border-slate-700 bg-slate-950/80 p-4">
-            <p className="text-sm text-slate-300">Review</p>
-            <p className="mt-2 text-sm text-slate-400">Escrow token: USDC on Arc ({ARC_USDC_ADDRESS})</p>
-            <p className="text-sm text-slate-400">Destination: {selectedDestinationChain.label}</p>
-            <p className="text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
-            <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
-            <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} USDC</p>
-            <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} USDC</p>
-            <p className="text-sm text-slate-500">
-              You will confirm 2 wallet transactions now: Approve, then Create Schedule. Recurring bridges are handled by
-              PayRoutine scheduler at each due interval.
-            </p>
-            {!isExecutorFeePercentValid ? (
-              <p className="mt-2 text-xs text-rose-400">
-                Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
-              </p>
+          <AnimatePresence initial={false}>
+            {showReviewCard ? (
+              <motion.div
+                key="cctp-review"
+                initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Card className="border-slate-700 bg-slate-950/80 p-4">
+                  <p className="text-sm text-slate-300">Review</p>
+                  <p className="mt-2 text-sm text-slate-400">Escrow token: USDC on Arc ({ARC_USDC_ADDRESS})</p>
+                  <p className="text-sm text-slate-400">Destination: {selectedDestinationChain.label}</p>
+                  <p className="text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
+                  <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
+                  <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} USDC</p>
+                  <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} USDC</p>
+                  <p className="text-sm text-slate-500">
+                    You will confirm 2 wallet transactions now: Approve, then Create Schedule. Recurring bridges are handled by
+                    PayRoutine scheduler at each due interval.
+                  </p>
+                  {!isExecutorFeePercentValid ? (
+                    <p className="mt-2 text-xs text-rose-400">
+                      Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
+                    </p>
+                  ) : null}
+                </Card>
+              </motion.div>
             ) : null}
-          </Card>
+          </AnimatePresence>
 
           <div className="flex flex-wrap gap-3">
             <Button type="submit" disabled={!isConnected || isPending || !isExecutorFeePercentValid}>

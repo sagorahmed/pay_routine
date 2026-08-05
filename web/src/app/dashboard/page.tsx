@@ -1,6 +1,7 @@
 import { format, formatDistanceToNow } from "date-fns";
 import { createPublicClient, formatUnits, http } from "viem";
 import { ActivityChart } from "@/components/dashboard/activity-chart";
+import { NewPaymentBanner } from "@/components/dashboard/new-payment-banner";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
 import { Card } from "@/components/ui/card";
 import { arcChain } from "@/lib/chain";
@@ -221,6 +222,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 md:px-8">
+      <NewPaymentBanner />
       <section>
         <h1 className="text-3xl font-black text-slate-100">Dashboard</h1>
         <p className="mt-1 text-slate-400">Operational pulse for recurring USDC streams.</p>

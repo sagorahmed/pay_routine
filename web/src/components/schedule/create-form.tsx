@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useAccount, usePublicClient } from "wagmi";
 import { BaseError, decodeEventLog, parseAbi, parseUnits } from "viem";
@@ -73,11 +73,15 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export function CreateScheduleForm() {
+type CreateScheduleFormProps = {
+  onStageChange?: (stage: "details" | "wallet") => void;
+  onCreated?: (payload: { scheduleId: string | null; kind: "schedule" }) => void;
+};
+
+export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleFormProps) {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const startDateInputRef = useRef<HTMLInputElement>(null);
-  const [reviewMode, setReviewMode] = useState(false);
   const [successInfo, setSuccessInfo] = useState<{
     approveHash: `0x${string}`;
     createHash: `0x${string}`;
@@ -117,6 +121,17 @@ export function CreateScheduleForm() {
     return frequency?.seconds ?? 30 * 24 * 3600;
   }, [values.frequency]);
 
+  const showReviewCard = useMemo(() => {
+    const hasRecipient = Boolean(values.recipient?.trim());
+    const hasAmount = Number(values.amountPerPayment ?? 0) > 0;
+    const hasPayments = Number(values.totalPayments ?? 0) > 0;
+    const hasFrequency = Boolean(values.frequency);
+    const hasStartDate = Boolean(values.startDate);
+    const hasToken = tokenMode === "usdc" || Boolean(values.token?.trim());
+
+    return hasRecipient && hasAmount && hasPayments && hasFrequency && hasStartDate && hasToken;
+  }, [tokenMode, values.amountPerPayment, values.frequency, values.recipient, values.startDate, values.token, values.totalPayments]);
+
   const totalEscrow = useMemo(() => {
     const payout = Number(values.amountPerPayment || 0);
     const reward = payout * (executorFeePercent / 100);
@@ -134,6 +149,14 @@ export function CreateScheduleForm() {
     const roundedToNextMinute = Math.ceil(minMs / 60000) * 60000;
     return formatDateTimeLocal(new Date(roundedToNextMinute));
   }, []);
+
+  useEffect(() => {
+    if (!onStageChange || successInfo) {
+      return;
+    }
+
+    onStageChange(isPending ? "wallet" : "details");
+  }, [isPending, onStageChange, successInfo]);
 
   useEffect(() => {
     if (tokenMode === "usdc") {
@@ -314,6 +337,10 @@ export function CreateScheduleForm() {
         createHash,
         scheduleId: createdScheduleId !== null ? createdScheduleId.toString() : null,
       });
+      onCreated?.({
+        scheduleId: createdScheduleId !== null ? createdScheduleId.toString() : null,
+        kind: "schedule",
+      });
       form.clearErrors("memo");
     } catch (error) {
       form.setError("memo", {
@@ -475,7 +502,7 @@ export function CreateScheduleForm() {
             ) : null}
           </div>
 
-          {successInfo ? (
+          {successInfo && !onCreated ? (
             <Card className="border-emerald-500/40 bg-emerald-950/20 p-4">
               <p className="text-sm font-medium text-emerald-300">Schedule created successfully on-chain</p>
               {successInfo.scheduleId !== null ? (
@@ -495,24 +522,33 @@ export function CreateScheduleForm() {
             </Card>
           ) : null}
 
-          <Card className="border-slate-700 bg-slate-950/80 p-4">
-            <p className="text-sm text-slate-300">Review</p>
-            <p className="mt-2 text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
-            <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
-            <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} tokens</p>
-            <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} $</p>
-            <p className="text-sm text-slate-500">You will confirm 2 wallet transactions: Approve, then Create Schedule.</p>
-            {!isExecutorFeePercentValid ? (
-              <p className="mt-2 text-xs text-rose-400">
-                Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
-              </p>
+          <AnimatePresence initial={false}>
+            {showReviewCard ? (
+              <motion.div
+                key="schedule-review"
+                initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Card className="border-slate-700 bg-slate-950/80 p-4">
+                  <p className="text-sm text-slate-300">Review</p>
+                  <p className="mt-2 text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
+                  <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
+                  <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} tokens</p>
+                  <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} $</p>
+                  <p className="text-sm text-slate-500">You will confirm 2 wallet transactions: Approve, then Create Schedule.</p>
+                  {!isExecutorFeePercentValid ? (
+                    <p className="mt-2 text-xs text-rose-400">
+                      Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
+                    </p>
+                  ) : null}
+                </Card>
+              </motion.div>
             ) : null}
-          </Card>
+          </AnimatePresence>
 
           <div className="flex flex-wrap gap-3">
-            <Button type="button" variant="secondary" onClick={() => setReviewMode((v) => !v)}>
-              {reviewMode ? "Hide Review" : "Show Review"}
-            </Button>
             <Button type="submit" disabled={!isConnected || isPending || !isExecutorFeePercentValid}>
               {isPending ? "Submitting..." : "Create Schedule"}
             </Button>
