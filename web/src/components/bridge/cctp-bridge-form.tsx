@@ -9,6 +9,7 @@ import { useAccount, usePublicClient } from "wagmi";
 import { BaseError, decodeEventLog, parseAbi, parseUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Input } from "@/components/ui/input";
 import { frequencyOptions } from "@/lib/frequencies";
 import { estimateBufferedContractGas } from "@/lib/gas";
@@ -373,22 +374,24 @@ export function CctpBridgeForm() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm text-slate-300">Destination Recipient Address</label>
-            <Input placeholder="0x..." {...form.register("destinationRecipient")} />
+            <FloatingInput
+              label="Destination Recipient Address"
+              placeholder="0x..."
+              {...form.register("destinationRecipient")}
+            />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm text-slate-300">Amount Per Payment (USDC)</label>
-              <Input
+              <FloatingInput
+                label="Amount Per Payment (USDC)"
                 type="number"
                 step="0.000001"
                 {...form.register("amountPerPayment", { valueAsNumber: true })}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300">Number of Payments</label>
-              <Input type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
+              <FloatingInput label="Number of Payments" type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
             </div>
           </div>
 
@@ -445,8 +448,11 @@ export function CctpBridgeForm() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm text-slate-300">Memo</label>
-            <Input placeholder="Treasury payout to destination chain" {...form.register("memo")} />
+            <FloatingInput
+              label="Memo"
+              placeholder="Treasury payout to destination chain"
+              {...form.register("memo")}
+            />
             {form.formState.errors.memo?.message ? (
               <p className="mt-2 text-xs text-rose-400">{form.formState.errors.memo.message}</p>
             ) : null}

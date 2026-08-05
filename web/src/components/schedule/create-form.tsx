@@ -10,6 +10,7 @@ import { useAccount, usePublicClient } from "wagmi";
 import { BaseError, decodeEventLog, parseAbi, parseUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Input } from "@/components/ui/input";
 import { frequencyOptions } from "@/lib/frequencies";
 import { estimateBufferedContractGas } from "@/lib/gas";
@@ -331,8 +332,7 @@ export function CreateScheduleForm() {
 
         <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
           <div>
-            <label className="mb-1 block text-sm text-slate-300">Recipient Address</label>
-            <Input placeholder="0x..." {...form.register("recipient")} />
+            <FloatingInput label="Recipient Address" placeholder="0x..." {...form.register("recipient")} />
           </div>
 
           <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
@@ -377,12 +377,16 @@ export function CreateScheduleForm() {
             ) : (
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm text-slate-300">Custom Token Address</label>
-                  <Input placeholder="0x..." {...form.register("token")} />
+                  <FloatingInput label="Custom Token Address" placeholder="0x..." {...form.register("token")} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm text-slate-300">Token Decimals</label>
-                  <Input type="number" min={0} max={18} {...form.register("tokenDecimals", { valueAsNumber: true })} />
+                  <FloatingInput
+                    label="Token Decimals"
+                    type="number"
+                    min={0}
+                    max={18}
+                    {...form.register("tokenDecimals", { valueAsNumber: true })}
+                  />
                 </div>
               </div>
             )}
@@ -396,16 +400,15 @@ export function CreateScheduleForm() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm text-slate-300">Amount Per Payment</label>
-              <Input
+              <FloatingInput
+                label="Amount Per Payment"
                 type="number"
                 step="0.000001"
                 {...form.register("amountPerPayment", { valueAsNumber: true })}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300">Number of Payments</label>
-              <Input type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
+              <FloatingInput label="Number of Payments" type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
             </div>
           </div>
 
@@ -462,8 +465,11 @@ export function CreateScheduleForm() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm text-slate-300">Memo</label>
-            <Input placeholder="Payroll tranche, creator grant, subscription..." {...form.register("memo")} />
+            <FloatingInput
+              label="Memo"
+              placeholder="Payroll tranche, creator grant, subscription..."
+              {...form.register("memo")}
+            />
             {form.formState.errors.memo?.message ? (
               <p className="mt-2 text-xs text-rose-400">{form.formState.errors.memo.message}</p>
             ) : null}
