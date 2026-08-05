@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import { Nav } from "@/components/layout/nav";
+import { PageTransition } from "@/components/layout/page-transition";
 import { Providers } from "@/components/layout/providers";
 import "./globals.css";
 
@@ -36,7 +37,7 @@ export default function RootLayout({
           <div className="relative min-h-screen overflow-hidden">
             <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.18),transparent_38%),radial-gradient(circle_at_78%_3%,rgba(16,185,129,0.12),transparent_35%),linear-gradient(120deg,#020617_0%,#031525_40%,#020617_100%)]" />
             <Nav />
-            {children}
+            <PageTransition>{children}</PageTransition>
           </div>
         </Providers>
       </body>
