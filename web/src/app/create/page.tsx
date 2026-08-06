@@ -84,6 +84,7 @@ export default function CreateSchedulePage() {
             onClick={closeFlow}
           >
             <motion.div
+              id="create-flow-shell"
               initial={{ opacity: 0, y: 40, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 24, scale: 0.98 }}

@@ -5,6 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
+import { createPortal } from "react-dom";
 import { useAccount, usePublicClient } from "wagmi";
 import { BaseError, decodeEventLog, parseAbi, parseUnits } from "viem";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
   const publicClient = usePublicClient();
   const startDateInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<1 | 2>(1);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const { writeContractAsync, isPending } = useRecurringContract();
 
   const [successInfo, setSuccessInfo] = useState<{
@@ -114,6 +116,7 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
 
   const values = useWatch({ control: form.control });
   const startDateField = form.register("startDate");
+  const reviewModalHost = typeof document !== "undefined" ? document.getElementById("create-flow-shell") : null;
 
   const selectedDestinationChain = useMemo(
     () =>
@@ -125,16 +128,6 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
     const frequency = frequencyOptions.find((item) => item.value === values.frequency);
     return frequency?.seconds ?? 30 * 24 * 3600;
   }, [values.frequency]);
-
-  const showReviewCard = useMemo(() => {
-    const hasDestinationRecipient = Boolean(values.destinationRecipient?.trim());
-    const hasAmount = Number(values.amountPerPayment ?? 0) > 0;
-    const hasPayments = Number(values.totalPayments ?? 0) > 0;
-    const hasFrequency = Boolean(values.frequency);
-    const hasStartDate = Boolean(values.startDate);
-
-    return hasDestinationRecipient && hasAmount && hasPayments && hasFrequency && hasStartDate;
-  }, [values.amountPerPayment, values.destinationRecipient, values.frequency, values.startDate, values.totalPayments]);
 
   const totalEscrow = useMemo(() => {
     const payout = Number(values.amountPerPayment || 0);
@@ -174,6 +167,20 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
     }
 
     setStep(2);
+  }
+
+  async function openReviewModal() {
+    const isStepTwoValid = await form.trigger(["frequency", "startDate", "memo"]);
+    if (!isStepTwoValid) {
+      return;
+    }
+
+    setIsReviewModalOpen(true);
+  }
+
+  async function confirmAndCreate() {
+    setIsReviewModalOpen(false);
+    await form.handleSubmit(onSubmit)();
   }
 
   async function onSubmit(data: FormValues) {
@@ -505,38 +512,15 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
                 ) : null}
               </div>
 
-              <AnimatePresence initial={false}>
-                {showReviewCard ? (
-                  <motion.div
-                    key="cctp-review"
-                    initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                  >
-                    <Card className="border-slate-700 bg-slate-950/80 p-4">
-                      <p className="text-sm text-slate-300">Review</p>
-                      <p className="mt-2 text-sm text-slate-400">Escrow token: USDC on Arc ({ARC_USDC_ADDRESS})</p>
-                      <p className="text-sm text-slate-400">Destination: {selectedDestinationChain.label}</p>
-                      <p className="text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
-                      <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
-                      <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} USDC</p>
-                      <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} USDC</p>
-                      {!isExecutorFeePercentValid ? (
-                        <p className="mt-2 text-xs text-rose-400">
-                          Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
-                        </p>
-                      ) : null}
-                    </Card>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-
               <div className="flex flex-wrap gap-3">
                 <Button type="button" variant="ghost" onClick={() => setStep(1)}>
                   Back
                 </Button>
-                <Button type="submit" disabled={!isConnected || isPending || !isExecutorFeePercentValid}>
+                <Button
+                  type="button"
+                  disabled={!isConnected || isPending || !isExecutorFeePercentValid}
+                  onClick={openReviewModal}
+                >
                   {isPending ? "Submitting..." : "Create Cross-Chain Schedule"}
                 </Button>
               </div>
@@ -553,6 +537,55 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
           ) : null}
 
         </form>
+
+        {reviewModalHost
+          ? createPortal(
+              <AnimatePresence>
+                {isReviewModalOpen ? (
+                  <motion.div
+                    className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="max-h-[calc(100%-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+                    >
+                      <h3 className="text-base font-semibold text-slate-100">Review Cross-Chain Schedule</h3>
+                      <p className="mt-1 text-xs text-slate-400">Confirm details before wallet transactions.</p>
+
+                      <div className="mt-4 space-y-1.5 text-sm text-slate-300">
+                        <p>Destination chain: {selectedDestinationChain.label}</p>
+                        <p>Destination recipient: {values.destinationRecipient || "-"}</p>
+                        <p>Amount: {Number(values.amountPerPayment || 0)} USDC</p>
+                        <p>Payments: {Number(values.totalPayments || 0)}</p>
+                        <p>Frequency: {values.frequency || "-"}</p>
+                        <p>Start: {values.startDate || "-"}</p>
+                        <p>Interval: {intervalSeconds} seconds</p>
+                        <p>Fee: {executorFeePercent.toFixed(2)}%</p>
+                        <p>Fee per payment: {rewardPerPayment.toFixed(6)} USDC</p>
+                        <p>Total escrow: {totalEscrow.toFixed(6)} USDC</p>
+                      </div>
+
+                      <div className="mt-5 flex justify-end gap-2">
+                        <Button type="button" variant="ghost" onClick={() => setIsReviewModalOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button type="button" onClick={confirmAndCreate}>
+                          Confirm & Create
+                        </Button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>,
+              reviewModalHost,
+            )
+          : null}
       </Card>
     </motion.div>
   );
