@@ -61,9 +61,6 @@ function formatCreateScheduleError(error: unknown): string {
 
 const schema = z.object({
   recipient: addressSchema,
-  tokenMode: z.enum(["usdc", "custom"]),
-  token: addressSchema,
-  tokenDecimals: z.number().int().min(0).max(18),
   amountPerPayment: z.number().positive(),
   frequency: z.string().min(1),
   startDate: z.string().min(1),
@@ -102,9 +99,6 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      tokenMode: hasUsdcAddress ? "usdc" : "custom",
-      token: hasUsdcAddress ? usdcTokenAddress : "",
-      tokenDecimals: 6,
       frequency: "monthly",
       totalPayments: 3,
     },
@@ -114,7 +108,6 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
 
   const values = useWatch({ control: form.control });
   const startDateField = form.register("startDate");
-  const tokenMode = values.tokenMode ?? (hasUsdcAddress ? "usdc" : "custom");
 
   const intervalSeconds = useMemo(() => {
     const frequency = frequencyOptions.find((item) => item.value === values.frequency);
@@ -127,10 +120,9 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
     const hasPayments = Number(values.totalPayments ?? 0) > 0;
     const hasFrequency = Boolean(values.frequency);
     const hasStartDate = Boolean(values.startDate);
-    const hasToken = tokenMode === "usdc" || Boolean(values.token?.trim());
 
-    return hasRecipient && hasAmount && hasPayments && hasFrequency && hasStartDate && hasToken;
-  }, [tokenMode, values.amountPerPayment, values.frequency, values.recipient, values.startDate, values.token, values.totalPayments]);
+    return hasRecipient && hasAmount && hasPayments && hasFrequency && hasStartDate;
+  }, [values.amountPerPayment, values.frequency, values.recipient, values.startDate, values.totalPayments]);
 
   const totalEscrow = useMemo(() => {
     const payout = Number(values.amountPerPayment || 0);
@@ -158,23 +150,6 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
     onStageChange(isPending ? "wallet" : "details");
   }, [isPending, onStageChange, successInfo]);
 
-  useEffect(() => {
-    if (tokenMode === "usdc") {
-      if (hasUsdcAddress) {
-        form.setValue("token", usdcTokenAddress, { shouldValidate: true });
-        form.setValue("tokenDecimals", 6, { shouldValidate: true });
-        form.clearErrors("token");
-      } else {
-        form.setError("token", { message: "Set NEXT_PUBLIC_USDC_TOKEN_ADDRESS to use USDC preset" });
-      }
-      return;
-    }
-
-    if (values.token === usdcTokenAddress) {
-      form.setValue("token", "", { shouldDirty: true, shouldValidate: true });
-    }
-  }, [tokenMode, hasUsdcAddress, form, usdcTokenAddress, values.token]);
-
   async function onSubmit(data: FormValues) {
     setSuccessInfo(null);
 
@@ -183,8 +158,8 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
       return;
     }
 
-    if (data.tokenMode === "usdc" && !hasUsdcAddress) {
-      form.setError("token", { message: "Missing NEXT_PUBLIC_USDC_TOKEN_ADDRESS" });
+    if (!hasUsdcAddress) {
+      form.setError("memo", { message: "Missing NEXT_PUBLIC_USDC_TOKEN_ADDRESS" });
       return;
     }
 
@@ -205,8 +180,8 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
       return;
     }
 
-    const tokenAddress = data.tokenMode === "usdc" ? usdcTokenAddress : data.token;
-    const amountPerPayment = parseUnits(String(data.amountPerPayment), data.tokenDecimals);
+    const tokenAddress = usdcTokenAddress;
+    const amountPerPayment = parseUnits(String(data.amountPerPayment), 6);
     const executorReward = (amountPerPayment * BigInt(executorFeePpm)) / EXECUTOR_FEE_DENOMINATOR;
     const totalDeposit = (amountPerPayment + executorReward) * BigInt(data.totalPayments);
 
@@ -310,7 +285,7 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
       const createReceipt = await publicClient.waitForTransactionReceipt({ hash: createHash });
       if (createReceipt.status !== "success") {
         form.setError("memo", {
-          message: "Create schedule transaction reverted. Check token balance, allowance, and decimals.",
+          message: "Create schedule transaction reverted. Check USDC balance and allowance.",
         });
         return;
       }
@@ -352,77 +327,14 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <Card>
-        <h2 className="text-xl font-semibold text-slate-100">Create Recurring Token Schedule</h2>
+        <h2 className="text-xl font-semibold text-slate-100">Create Recurring USDC Schedule</h2>
         <p className="mt-1 text-sm text-slate-400">
-          One signature, guaranteed escrow, automated execution by the PayRoutine scheduler.
+          Escrow USDC on Arc and automate recurring payouts with one setup flow.
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
           <div>
             <FloatingInput label="Recipient Address" placeholder="0x..." {...form.register("recipient")} />
-          </div>
-
-          <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <label className="block text-sm text-slate-300">Token</label>
-              <span className="text-xs text-slate-500">USDC recommended</span>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                className={`rounded-xl border px-3 py-2 text-left text-sm transition-[transform,box-shadow,background-color,border-color,color] duration-300 ease-out will-change-transform hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.985] active:translate-y-0 ${
-                  tokenMode === "usdc"
-                    ? "border-cyan-400/70 bg-cyan-500/10 text-cyan-200 shadow-[0_14px_36px_-22px_rgba(34,211,238,0.65)]"
-                    : "border-slate-700 bg-slate-950 text-slate-300 shadow-[0_12px_28px_-22px_rgba(15,23,42,0.9)] hover:border-cyan-400/30 hover:shadow-[0_16px_40px_-22px_rgba(34,211,238,0.28)]"
-                }`}
-                onClick={() => form.setValue("tokenMode", "usdc", { shouldDirty: true, shouldValidate: true })}
-              >
-                <p className="font-medium">USDC</p>
-                <p className="mt-0.5 text-xs text-slate-400">Fastest setup for stable-value schedules</p>
-              </button>
-
-              <button
-                type="button"
-                className={`rounded-xl border px-3 py-2 text-left text-sm transition-[transform,box-shadow,background-color,border-color,color] duration-300 ease-out will-change-transform hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.985] active:translate-y-0 ${
-                  tokenMode === "custom"
-                    ? "border-cyan-400/70 bg-cyan-500/10 text-cyan-200 shadow-[0_14px_36px_-22px_rgba(34,211,238,0.65)]"
-                    : "border-slate-700 bg-slate-950 text-slate-300 shadow-[0_12px_28px_-22px_rgba(15,23,42,0.9)] hover:border-cyan-400/30 hover:shadow-[0_16px_40px_-22px_rgba(34,211,238,0.28)]"
-                }`}
-                onClick={() => form.setValue("tokenMode", "custom", { shouldDirty: true, shouldValidate: true })}
-              >
-                <p className="font-medium">Custom Token</p>
-                <p className="mt-0.5 text-xs text-slate-400">Use any ERC-20 token address</p>
-              </button>
-            </div>
-
-            {tokenMode === "usdc" ? (
-              <div className="mt-3 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2">
-                <p className="text-xs text-slate-400">USDC token address</p>
-                <p className="mt-1 break-all text-sm text-slate-200">{hasUsdcAddress ? usdcTokenAddress : "Not configured"}</p>
-              </div>
-            ) : (
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <div>
-                  <FloatingInput label="Custom Token Address" placeholder="0x..." {...form.register("token")} />
-                </div>
-                <div>
-                  <FloatingInput
-                    label="Token Decimals"
-                    type="number"
-                    min={0}
-                    max={18}
-                    {...form.register("tokenDecimals", { valueAsNumber: true })}
-                  />
-                </div>
-              </div>
-            )}
-
-            {form.formState.errors.token?.message ? (
-              <p className="mt-2 text-xs text-rose-400">{form.formState.errors.token.message}</p>
-            ) : null}
-
-            <input type="hidden" {...form.register("tokenMode")} />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
