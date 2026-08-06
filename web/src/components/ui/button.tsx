@@ -26,7 +26,7 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
     <button
       ref={ref}
       className={cn(
-        "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-[transform,box-shadow,background-color,border-color,color] duration-300 ease-out will-change-transform hover:scale-[1.03] hover:-translate-y-0.5 active:scale-[0.985] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:translate-y-0 [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-300 [&_svg]:ease-out hover:[&_svg]:translate-x-1",
+        "inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-[transform,box-shadow,background-color,border-color,color] duration-300 ease-out will-change-transform hover:scale-[1.03] hover:-translate-y-0.5 active:scale-[0.985] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:translate-y-0 [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-300 [&_svg]:ease-out hover:[&_svg]:translate-x-1",
         variantClass[variant],
         className,
       )}

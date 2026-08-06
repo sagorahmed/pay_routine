@@ -348,7 +348,7 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
           </div>
 
           {step === 1 ? (
-            <div className="space-y-4">
+            <div key="schedule-step-1" className="space-y-4">
               <FloatingInput label="Recipient Address" placeholder="0x..." {...form.register("recipient")} />
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -382,7 +382,7 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div key="schedule-step-2" className="space-y-4">
               <div>
                 <label className="mb-1 block text-sm text-slate-300">Start Date</label>
                 <div className="relative">
@@ -424,6 +424,7 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
                 <FloatingInput
                   label="Memo"
                   placeholder="Payroll tranche, creator grant, subscription..."
+                  autoComplete="off"
                   {...form.register("memo")}
                 />
                 {form.formState.errors.memo?.message ? (

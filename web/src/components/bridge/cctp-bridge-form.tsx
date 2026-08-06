@@ -394,7 +394,7 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
           </div>
 
           {step === 1 ? (
-            <div className="space-y-4">
+            <div key="cctp-step-1" className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm text-slate-300">Source Chain</label>
@@ -441,7 +441,7 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
               </div>
             </div>
           ) : (
-            <div className="space-y-3.5">
+            <div key="cctp-step-2" className="space-y-3.5">
               <div>
                 <label className="mb-1 block text-sm text-slate-300">Frequency</label>
                 <select
@@ -497,6 +497,7 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
                 <FloatingInput
                   label="Memo"
                   placeholder="Treasury payout to destination chain"
+                  autoComplete="off"
                   {...form.register("memo")}
                 />
                 {form.formState.errors.memo?.message ? (
