@@ -93,8 +93,7 @@ export default function CreateSchedulePage() {
             >
               <div className="flex items-start justify-between gap-4 border-b border-slate-800/80 px-4 py-4 md:px-6 md:py-5">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/75">Create Payment</p>
-                  <h2 className="mt-2 text-xl font-black text-slate-100 md:text-2xl">Build a recurring payment with a guided flow</h2>
+                  <h2 className="mt-2 text-xl font-black text-slate-100 md:text-2xl">Build a recurring payment</h2>
                 </div>
                 <button
                   type="button"

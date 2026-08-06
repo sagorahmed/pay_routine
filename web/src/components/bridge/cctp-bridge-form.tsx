@@ -78,6 +78,7 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const startDateInputRef = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState<1 | 2>(1);
   const { writeContractAsync, isPending } = useRecurringContract();
 
   const [successInfo, setSuccessInfo] = useState<{
@@ -160,6 +161,20 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
 
     onStageChange(isPending ? "wallet" : "details");
   }, [isPending, onStageChange, successInfo]);
+
+  async function goToStepTwo() {
+    const isStepOneValid = await form.trigger([
+      "destinationChainKey",
+      "destinationRecipient",
+      "amountPerPayment",
+      "totalPayments",
+    ]);
+    if (!isStepOneValid) {
+      return;
+    }
+
+    setStep(2);
+  }
 
   async function onSubmit(data: FormValues) {
     setSuccessInfo(null);
@@ -368,119 +383,164 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <Card>
         <h2 className="text-xl font-semibold text-slate-100">Create Recurring Cross-Chain Schedule (CCTP)</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Funds are escrowed on Arc now, then on each due interval PayRoutine executor receives the payout and bridges USDC
-          to the destination chain automatically.
-        </p>
+        <form className="mt-4 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className={`rounded-full px-2 py-1 ${step === 1 ? "bg-cyan-500/20 text-cyan-300" : "bg-slate-800 text-slate-400"}`}>
+              Step 1: Basics
+            </span>
+            <span className={`rounded-full px-2 py-1 ${step === 2 ? "bg-cyan-500/20 text-cyan-300" : "bg-slate-800 text-slate-400"}`}>
+              Step 2: Details & Create
+            </span>
+          </div>
 
-        <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm text-slate-300">Source Chain</label>
-              <div className="flex h-10 items-center rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 text-sm text-cyan-200">
-                Arc Network (fixed)
+          {step === 1 ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm text-slate-300">Source Chain</label>
+                  <div className="flex h-10 items-center rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 text-sm text-cyan-200">
+                    Arc Network
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm text-slate-300">Destination Chain</label>
+                  <select
+                    className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100"
+                    {...form.register("destinationChainKey")}
+                  >
+                    {CCTP_DESTINATION_CHAINS.map((chain) => (
+                      <option key={chain.key} value={chain.key}>
+                        {chain.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <FloatingInput
+                label="Destination Recipient Address"
+                placeholder="0x..."
+                {...form.register("destinationRecipient")}
+              />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FloatingInput
+                  label="Amount Per Payment (USDC)"
+                  type="number"
+                  step="0.000001"
+                  {...form.register("amountPerPayment", { valueAsNumber: true })}
+                />
+                <FloatingInput label="Number of Payments" type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" onClick={goToStepTwo}>
+                  Next
+                </Button>
               </div>
             </div>
+          ) : (
+            <div className="space-y-3.5">
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Frequency</label>
+                <select
+                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100"
+                  {...form.register("frequency")}
+                >
+                  {frequencyOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="mb-1 block text-sm text-slate-300">Destination Chain</label>
-              <select
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100"
-                {...form.register("destinationChainKey")}
-              >
-                {CCTP_DESTINATION_CHAINS.map((chain) => (
-                  <option key={chain.key} value={chain.key}>
-                    {chain.label}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Start Date</label>
+                <div className="relative">
+                  <Input
+                    ref={(element) => {
+                      startDateInputRef.current = element;
+                      startDateField.ref(element);
+                    }}
+                    type="datetime-local"
+                    min={minimumStartDate}
+                    className="pr-28 [color-scheme:dark]"
+                    name={startDateField.name}
+                    onBlur={startDateField.onBlur}
+                    onChange={startDateField.onChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="absolute right-1 top-1 h-8 px-3 text-xs"
+                    onClick={() => {
+                      const input = startDateInputRef.current;
+                      if (!input) return;
+                      if (typeof input.showPicker === "function") {
+                        input.showPicker();
+                        return;
+                      }
+                      input.focus();
+                    }}
+                  >
+                    Pick Date
+                  </Button>
+                </div>
+                {form.formState.errors.startDate?.message ? (
+                  <p className="mt-2 text-xs text-rose-400">{form.formState.errors.startDate.message}</p>
+                ) : null}
+              </div>
+
+              <div>
+                <FloatingInput
+                  label="Memo"
+                  placeholder="Treasury payout to destination chain"
+                  {...form.register("memo")}
+                />
+                {form.formState.errors.memo?.message ? (
+                  <p className="mt-2 text-xs text-rose-400">{form.formState.errors.memo.message}</p>
+                ) : null}
+              </div>
+
+              <AnimatePresence initial={false}>
+                {showReviewCard ? (
+                  <motion.div
+                    key="cctp-review"
+                    initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <Card className="border-slate-700 bg-slate-950/80 p-4">
+                      <p className="text-sm text-slate-300">Review</p>
+                      <p className="mt-2 text-sm text-slate-400">Escrow token: USDC on Arc ({ARC_USDC_ADDRESS})</p>
+                      <p className="text-sm text-slate-400">Destination: {selectedDestinationChain.label}</p>
+                      <p className="text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
+                      <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
+                      <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} USDC</p>
+                      <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} USDC</p>
+                      {!isExecutorFeePercentValid ? (
+                        <p className="mt-2 text-xs text-rose-400">
+                          Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
+                        </p>
+                      ) : null}
+                    </Card>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="ghost" onClick={() => setStep(1)}>
+                  Back
+                </Button>
+                <Button type="submit" disabled={!isConnected || isPending || !isExecutorFeePercentValid}>
+                  {isPending ? "Submitting..." : "Create Cross-Chain Schedule"}
+                </Button>
+              </div>
             </div>
-          </div>
-
-          <div>
-            <FloatingInput
-              label="Destination Recipient Address"
-              placeholder="0x..."
-              {...form.register("destinationRecipient")}
-            />
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <FloatingInput
-                label="Amount Per Payment (USDC)"
-                type="number"
-                step="0.000001"
-                {...form.register("amountPerPayment", { valueAsNumber: true })}
-              />
-            </div>
-            <div>
-              <FloatingInput label="Number of Payments" type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm text-slate-300">Frequency</label>
-            <select
-              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100"
-              {...form.register("frequency")}
-            >
-              {frequencyOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm text-slate-300">Start Date</label>
-            <div className="relative">
-              <Input
-                ref={(element) => {
-                  startDateInputRef.current = element;
-                  startDateField.ref(element);
-                }}
-                type="datetime-local"
-                min={minimumStartDate}
-                className="pr-28 [color-scheme:dark]"
-                name={startDateField.name}
-                onBlur={startDateField.onBlur}
-                onChange={startDateField.onChange}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                className="absolute right-1 top-1 h-8 px-3 text-xs"
-                onClick={() => {
-                  const input = startDateInputRef.current;
-                  if (!input) return;
-                  if (typeof input.showPicker === "function") {
-                    input.showPicker();
-                    return;
-                  }
-                  input.focus();
-                }}
-              >
-                Pick Date
-              </Button>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">Select when the first payment should start.</p>
-            {form.formState.errors.startDate?.message ? (
-              <p className="mt-2 text-xs text-rose-400">{form.formState.errors.startDate.message}</p>
-            ) : null}
-          </div>
-
-          <div>
-            <FloatingInput
-              label="Memo"
-              placeholder="Treasury payout to destination chain"
-              {...form.register("memo")}
-            />
-            {form.formState.errors.memo?.message ? (
-              <p className="mt-2 text-xs text-rose-400">{form.formState.errors.memo.message}</p>
-            ) : null}
-          </div>
+          )}
 
           {successInfo && !onCreated ? (
             <Card className="border-emerald-500/40 bg-emerald-950/20 p-4">
@@ -491,42 +551,6 @@ export function CctpBridgeForm({ onStageChange, onCreated }: CctpBridgeFormProps
             </Card>
           ) : null}
 
-          <AnimatePresence initial={false}>
-            {showReviewCard ? (
-              <motion.div
-                key="cctp-review"
-                initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <Card className="border-slate-700 bg-slate-950/80 p-4">
-                  <p className="text-sm text-slate-300">Review</p>
-                  <p className="mt-2 text-sm text-slate-400">Escrow token: USDC on Arc ({ARC_USDC_ADDRESS})</p>
-                  <p className="text-sm text-slate-400">Destination: {selectedDestinationChain.label}</p>
-                  <p className="text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
-                  <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
-                  <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} USDC</p>
-                  <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} USDC</p>
-                  <p className="text-sm text-slate-500">
-                    You will confirm 2 wallet transactions now: Approve, then Create Schedule. Recurring bridges are handled by
-                    PayRoutine scheduler at each due interval.
-                  </p>
-                  {!isExecutorFeePercentValid ? (
-                    <p className="mt-2 text-xs text-rose-400">
-                      Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
-                    </p>
-                  ) : null}
-                </Card>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={!isConnected || isPending || !isExecutorFeePercentValid}>
-              {isPending ? "Submitting..." : "Create Cross-Chain Schedule"}
-            </Button>
-          </div>
         </form>
       </Card>
     </motion.div>

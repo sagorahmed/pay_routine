@@ -79,6 +79,7 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const startDateInputRef = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState<1 | 2>(1);
   const [successInfo, setSuccessInfo] = useState<{
     approveHash: `0x${string}`;
     createHash: `0x${string}`;
@@ -149,6 +150,14 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
 
     onStageChange(isPending ? "wallet" : "details");
   }, [isPending, onStageChange, successInfo]);
+
+  async function goToStepTwo() {
+    const isStepOneValid = await form.trigger(["recipient", "amountPerPayment", "totalPayments", "frequency"]);
+    if (!isStepOneValid) {
+      return;
+    }
+    setStep(2);
+  }
 
   async function onSubmit(data: FormValues) {
     setSuccessInfo(null);
@@ -328,91 +337,135 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <Card>
         <h2 className="text-xl font-semibold text-slate-100">Create Recurring USDC Schedule</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Escrow USDC on Arc and automate recurring payouts with one setup flow.
-        </p>
-
-        <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-          <div>
-            <FloatingInput label="Recipient Address" placeholder="0x..." {...form.register("recipient")} />
+        <form className="mt-4 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className={`rounded-full px-2 py-1 ${step === 1 ? "bg-cyan-500/20 text-cyan-300" : "bg-slate-800 text-slate-400"}`}>
+              Step 1: Basics
+            </span>
+            <span className={`rounded-full px-2 py-1 ${step === 2 ? "bg-cyan-500/20 text-cyan-300" : "bg-slate-800 text-slate-400"}`}>
+              Step 2: Details & Create
+            </span>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <FloatingInput
-                label="Amount Per Payment"
-                type="number"
-                step="0.000001"
-                {...form.register("amountPerPayment", { valueAsNumber: true })}
-              />
+          {step === 1 ? (
+            <div className="space-y-4">
+              <FloatingInput label="Recipient Address" placeholder="0x..." {...form.register("recipient")} />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FloatingInput
+                  label="Amount Per Payment"
+                  type="number"
+                  step="0.000001"
+                  {...form.register("amountPerPayment", { valueAsNumber: true })}
+                />
+                <FloatingInput label="Number of Payments" type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Frequency</label>
+                <select
+                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100"
+                  {...form.register("frequency")}
+                >
+                  {frequencyOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" onClick={goToStepTwo}>
+                  Next
+                </Button>
+              </div>
             </div>
-            <div>
-              <FloatingInput label="Number of Payments" type="number" {...form.register("totalPayments", { valueAsNumber: true })} />
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Start Date</label>
+                <div className="relative">
+                  <Input
+                    ref={(element) => {
+                      startDateInputRef.current = element;
+                      startDateField.ref(element);
+                    }}
+                    type="datetime-local"
+                    min={minimumStartDate}
+                    className="pr-28 [color-scheme:dark]"
+                    name={startDateField.name}
+                    onBlur={startDateField.onBlur}
+                    onChange={startDateField.onChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="absolute right-1 top-1 h-8 px-3 text-xs"
+                    onClick={() => {
+                      const input = startDateInputRef.current;
+                      if (!input) return;
+                      if (typeof input.showPicker === "function") {
+                        input.showPicker();
+                        return;
+                      }
+                      input.focus();
+                    }}
+                  >
+                    Pick Date
+                  </Button>
+                </div>
+                {form.formState.errors.startDate?.message ? (
+                  <p className="mt-2 text-xs text-rose-400">{form.formState.errors.startDate.message}</p>
+                ) : null}
+              </div>
+
+              <div>
+                <FloatingInput
+                  label="Memo"
+                  placeholder="Payroll tranche, creator grant, subscription..."
+                  {...form.register("memo")}
+                />
+                {form.formState.errors.memo?.message ? (
+                  <p className="mt-2 text-xs text-rose-400">{form.formState.errors.memo.message}</p>
+                ) : null}
+              </div>
+
+              <AnimatePresence initial={false}>
+                {showReviewCard ? (
+                  <motion.div
+                    key="schedule-review"
+                    initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <Card className="border-slate-700 bg-slate-950/80 p-4">
+                      <p className="text-sm text-slate-300">Review</p>
+                      <p className="mt-2 text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
+                      <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
+                      <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} tokens</p>
+                      <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} $</p>
+                      {!isExecutorFeePercentValid ? (
+                        <p className="mt-2 text-xs text-rose-400">
+                          Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
+                        </p>
+                      ) : null}
+                    </Card>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="ghost" onClick={() => setStep(1)}>
+                  Back
+                </Button>
+                <Button type="submit" disabled={!isConnected || isPending || !isExecutorFeePercentValid}>
+                  {isPending ? "Submitting..." : "Create Schedule"}
+                </Button>
+              </div>
             </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm text-slate-300">Frequency</label>
-            <select
-              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100"
-              {...form.register("frequency")}
-            >
-              {frequencyOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm text-slate-300">Start Date</label>
-            <div className="relative">
-              <Input
-                ref={(element) => {
-                  startDateInputRef.current = element;
-                  startDateField.ref(element);
-                }}
-                type="datetime-local"
-                min={minimumStartDate}
-                className="pr-28 [color-scheme:dark]"
-                name={startDateField.name}
-                onBlur={startDateField.onBlur}
-                onChange={startDateField.onChange}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                className="absolute right-1 top-1 h-8 px-3 text-xs"
-                onClick={() => {
-                  const input = startDateInputRef.current;
-                  if (!input) return;
-                  if (typeof input.showPicker === "function") {
-                    input.showPicker();
-                    return;
-                  }
-                  input.focus();
-                }}
-              >
-                Pick Date
-              </Button>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">Select when the first payment should start.</p>
-            {form.formState.errors.startDate?.message ? (
-              <p className="mt-2 text-xs text-rose-400">{form.formState.errors.startDate.message}</p>
-            ) : null}
-          </div>
-
-          <div>
-            <FloatingInput
-              label="Memo"
-              placeholder="Payroll tranche, creator grant, subscription..."
-              {...form.register("memo")}
-            />
-            {form.formState.errors.memo?.message ? (
-              <p className="mt-2 text-xs text-rose-400">{form.formState.errors.memo.message}</p>
-            ) : null}
-          </div>
+          )}
 
           {successInfo && !onCreated ? (
             <Card className="border-emerald-500/40 bg-emerald-950/20 p-4">
@@ -434,37 +487,6 @@ export function CreateScheduleForm({ onStageChange, onCreated }: CreateScheduleF
             </Card>
           ) : null}
 
-          <AnimatePresence initial={false}>
-            {showReviewCard ? (
-              <motion.div
-                key="schedule-review"
-                initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <Card className="border-slate-700 bg-slate-950/80 p-4">
-                  <p className="text-sm text-slate-300">Review</p>
-                  <p className="mt-2 text-sm text-slate-400">Interval: {intervalSeconds} seconds</p>
-                  <p className="text-sm text-slate-400">Fee: {executorFeePercent.toFixed(2)}% per payment</p>
-                  <p className="text-sm text-slate-400">Fee per payment: {rewardPerPayment.toFixed(6)} tokens</p>
-                  <p className="text-sm text-slate-400">Total escrow required: {totalEscrow.toFixed(6)} $</p>
-                  <p className="text-sm text-slate-500">You will confirm 2 wallet transactions: Approve, then Create Schedule.</p>
-                  {!isExecutorFeePercentValid ? (
-                    <p className="mt-2 text-xs text-rose-400">
-                      Set NEXT_PUBLIC_EXECUTOR_REWARD_PERCENT (0-100) to enable schedule creation.
-                    </p>
-                  ) : null}
-                </Card>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={!isConnected || isPending || !isExecutorFeePercentValid}>
-              {isPending ? "Submitting..." : "Create Schedule"}
-            </Button>
-          </div>
         </form>
       </Card>
     </motion.div>
