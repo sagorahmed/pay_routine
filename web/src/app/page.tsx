@@ -31,9 +31,6 @@ export default function Home() {
     <main className="mx-auto w-full max-w-7xl px-4 py-14 md:px-8">
       <section className="grid items-center gap-8 lg:grid-cols-2">
         <div>
-          <p className="inline-flex rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-xs font-semibold tracking-[0.2em] text-cyan-200">
-            ARC NETWORK + CCTP
-          </p>
           <h1 className="mt-5 text-4xl font-black leading-tight text-slate-100 md:text-6xl">
             Escrow on Arc.
             <br />
