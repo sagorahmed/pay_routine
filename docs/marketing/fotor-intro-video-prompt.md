@@ -1,9 +1,3 @@
-# PayRoutine — Introduction Video Prompt (Fotor AI)
-
-Paste the block below into Fotor's AI text-to-video prompt box.
-
----
-
 ## Fotor Video Prompt
 
 **Subject:** PayRoutine — automatic recurring USDC payments on the Arc Network
