@@ -1,5 +1,3 @@
-# PayRoutine Contracts
-
 ## Prerequisites
 
 - Foundry installed
